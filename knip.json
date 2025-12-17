@@ -1,0 +1,48 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "packages/api": {
+      "entry": [
+        "src/index.ts",
+        "src/middleware/auth.ts",
+        "src/middleware/rate-limit.ts",
+        "src/routes/*.ts"
+      ],
+      "project": ["src/**/*.ts"],
+      "ignore": ["src/**/*.test.ts", "src/lib/storage.ts", "src/lib/supabase.ts"]
+    },
+    "packages/app": {
+      "entry": ["src/main.tsx", "src/App.tsx", "src/routes/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      "ignore": [
+        "src/**/*.test.{ts,tsx}",
+        "src/components/ui/**",
+        "src/components/providers.tsx",
+        "src/hooks/**",
+        "src/lib/**",
+        "src/routeTree.gen.ts",
+        "src/pages/**"
+      ],
+      "ignoreDependencies": [
+        "@hookform/resolvers",
+        "@mastertrack/shared",
+        "@radix-ui/react-dialog",
+        "@radix-ui/react-dropdown-menu",
+        "@radix-ui/react-label",
+        "@radix-ui/react-select",
+        "@radix-ui/react-separator",
+        "@supabase/supabase-js",
+        "react-hook-form",
+        "zod"
+      ]
+    },
+    "packages/shared": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"],
+      "ignore": ["src/**/*.test.ts"]
+    }
+  },
+  "ignoreExportsUsedInFile": true,
+  "ignoreDependencies": ["@commitlint/cli", "bun-types"],
+  "ignoreBinaries": ["lsof"]
+}

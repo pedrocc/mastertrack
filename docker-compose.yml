@@ -1,0 +1,48 @@
+# =============================================================================
+# DESENVOLVIMENTO LOCAL APENAS
+# =============================================================================
+# AVISO DE SEGURANCA: Este arquivo usa credenciais padrao para desenvolvimento.
+# NAO use estas credenciais em producao!
+# Em producao, use Supabase PostgreSQL ou configure credenciais seguras.
+#
+# CONFLITO DE PORTAS: Se as portas 5432/6379 estiverem em uso, ajuste no .env:
+#   POSTGRES_PORT=5433
+#   REDIS_PORT=6380
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mastertrack_postgres
+    environment:
+      # ATENCAO: Credenciais apenas para desenvolvimento local
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app_dev
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: mastertrack_redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

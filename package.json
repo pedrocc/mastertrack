@@ -1,0 +1,49 @@
+{
+  "name": "mastertrack",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter=* dev",
+    "dev:api": "bun run --filter=@mastertrack/api dev",
+    "dev:app": "bun run --filter=@mastertrack/app dev",
+    "build": "bun run --filter=* build",
+    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/api && tsc --noEmit -p packages/app",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "test:coverage": "bun test --coverage",
+    "knip": "knip",
+    "docker:up": "bun scripts/docker-up.ts",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "docker:reset": "docker compose down -v && docker compose up -d",
+    "db:push": "bun scripts/db-push.ts",
+    "db:generate": "bun run --filter=@mastertrack/api db:generate",
+    "db:migrate": "bun run --filter=@mastertrack/api db:migrate",
+    "db:seed": "bun run --filter=@mastertrack/api db:seed",
+    "db:studio": "bun run --filter=@mastertrack/api db:studio",
+    "routes:generate": "bun run --filter=@mastertrack/app routes:generate",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.3.9",
+    "@commitlint/cli": "^20.2.0",
+    "@commitlint/config-conventional": "^20.2.0",
+    "@total-typescript/ts-reset": "^0.6.1",
+    "bun-types": "^1.3.4",
+    "husky": "^9.1.7",
+    "knip": "^5.74.0",
+    "lint-staged": "^16.2.7",
+    "typescript": "^5.9.3"
+  },
+  "trustedDependencies": [
+    "@biomejs/biome",
+    "esbuild",
+    "sharp"
+  ]
+}

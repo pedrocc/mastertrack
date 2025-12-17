@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env*
+*.log
+coverage
+.turbo
+.next
+*.md
+!README.md
+.vscode
+.idea
+drizzle/*.sql

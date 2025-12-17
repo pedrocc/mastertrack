@@ -1,0 +1,11 @@
+[install]
+# Link workspaces automaticamente
+linkWorkspacePackages = true
+
+# Hoisting de dependencias
+hoist = true
+
+[test]
+# Configuracao de testes
+coverage = true
+coverageDir = "coverage"
