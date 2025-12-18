@@ -11,6 +11,7 @@ import {
 } from "../components/ui/dropdown-menu";
 import { Toaster } from "../components/ui/toaster";
 import { useAuth } from "../contexts/auth-context";
+import { useNotifications } from "../contexts/notifications-context";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -18,6 +19,7 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
+  const { unreadCount, markAllAsRead } = useNotifications();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -34,9 +36,7 @@ function RootLayout() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center animate-pulse">
-            <span className="text-xl font-black text-white">M</span>
-          </div>
+          <img src="/logo.png" alt="Masterboi" className="w-12 h-12 rounded-lg animate-pulse" />
           <p className="text-muted-foreground text-sm">Carregando...</p>
         </div>
       </div>
@@ -52,9 +52,11 @@ function RootLayout() {
             {/* Logo and Nav */}
             <div className="flex items-center gap-8">
               <Link to="/" className="flex items-center gap-3 group">
-                <div className="w-9 h-9 bg-primary rounded-lg flex items-center justify-center shadow-sm group-hover:shadow-md group-hover:shadow-primary/20 transition-shadow">
-                  <span className="text-sm font-black text-white">M</span>
-                </div>
+                <img
+                  src="/logo.png"
+                  alt="Masterboi"
+                  className="w-9 h-9 rounded-lg shadow-sm group-hover:shadow-md group-hover:shadow-primary/20 transition-shadow"
+                />
                 <span className="brand-logo text-xl text-foreground hidden sm:block">
                   Master<span className="text-primary">track</span>
                 </span>
@@ -67,19 +69,42 @@ function RootLayout() {
                 >
                   Dashboard
                 </Link>
-                {isAdmin && (
+                {!isAdmin && (
                   <Link
-                    to="/admin/users"
-                    className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    to="/requests"
+                    onClick={markAllAsRead}
+                    className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
                   >
-                    Usuarios
+                    Requisicoes
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </Link>
+                )}
+                {isAdmin && (
+                  <>
+                    <Link
+                      to="/admin/companies"
+                      className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    >
+                      Empresas
+                    </Link>
+                    <Link
+                      to="/admin/users"
+                      className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    >
+                      Usuarios
+                    </Link>
+                  </>
                 )}
               </nav>
             </div>
 
             {/* User Menu */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              {/* User Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex items-center gap-3 p-2 pr-4 rounded-full hover:bg-muted transition-colors outline-none focus:ring-2 focus:ring-primary/20">
                   <Avatar className="h-8 w-8 bg-primary text-white">

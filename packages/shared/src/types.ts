@@ -52,6 +52,27 @@ export interface AuthUser {
 export type UserRole = "admin" | "user" | "guest";
 
 /**
+ * Empresa
+ */
+export interface Company {
+  id: string;
+  name: string;
+  cnpj: string;
+  email: string;
+  phone?: string;
+  address?: string;
+  createdAt: string;
+}
+
+/**
+ * Usuario com empresa
+ */
+export interface UserWithCompany extends AuthUser {
+  companyId?: string;
+  companyName?: string;
+}
+
+/**
  * Timestamps padrao
  */
 export interface Timestamps {

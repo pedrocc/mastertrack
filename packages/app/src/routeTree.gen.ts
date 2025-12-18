@@ -9,11 +9,18 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RequestsRouteImport } from './routes/requests'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminCompaniesRouteImport } from './routes/admin/companies'
 
+const RequestsRoute = RequestsRouteImport.update({
+  id: '/requests',
+  path: '/requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -34,16 +41,25 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCompaniesRoute = AdminCompaniesRouteImport.update({
+  id: '/admin/companies',
+  path: '/admin/companies',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/requests': typeof RequestsRoute
+  '/admin/companies': typeof AdminCompaniesRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/requests': typeof RequestsRoute
+  '/admin/companies': typeof AdminCompaniesRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -51,26 +67,56 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
+  '/requests': typeof RequestsRoute
+  '/admin/companies': typeof AdminCompaniesRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/login' | '/admin/users' | '/users/$userId'
+  fullPaths:
+    | '/'
+    | '/login'
+    | '/requests'
+    | '/admin/companies'
+    | '/admin/users'
+    | '/users/$userId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/admin/users' | '/users/$userId'
-  id: '__root__' | '/' | '/login' | '/admin/users' | '/users/$userId'
+  to:
+    | '/'
+    | '/login'
+    | '/requests'
+    | '/admin/companies'
+    | '/admin/users'
+    | '/users/$userId'
+  id:
+    | '__root__'
+    | '/'
+    | '/login'
+    | '/requests'
+    | '/admin/companies'
+    | '/admin/users'
+    | '/users/$userId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
+  RequestsRoute: typeof RequestsRoute
+  AdminCompaniesRoute: typeof AdminCompaniesRoute
   AdminUsersRoute: typeof AdminUsersRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/requests': {
+      id: '/requests'
+      path: '/requests'
+      fullPath: '/requests'
+      preLoaderRoute: typeof RequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -99,12 +145,21 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/companies': {
+      id: '/admin/companies'
+      path: '/admin/companies'
+      fullPath: '/admin/companies'
+      preLoaderRoute: typeof AdminCompaniesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
+  RequestsRoute: RequestsRoute,
+  AdminCompaniesRoute: AdminCompaniesRoute,
   AdminUsersRoute: AdminUsersRoute,
   UsersUserIdRoute: UsersUserIdRoute,
 }

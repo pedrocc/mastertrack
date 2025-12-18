@@ -13,6 +13,7 @@ import {
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { useAuth } from "../../contexts/auth-context";
+import { useCompanies } from "../../contexts/companies-context";
 
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
@@ -24,6 +25,7 @@ interface MockUser {
   name: string;
   email: string;
   role: "admin" | "user";
+  companyId?: string;
   createdAt: string;
 }
 
@@ -37,29 +39,58 @@ const INITIAL_USERS: MockUser[] = [
   },
   {
     id: "2",
-    name: "Usuario Teste",
+    name: "Joao Silva",
     email: "user@mastertrack.com",
     role: "user",
+    companyId: "company-1",
     createdAt: "2024-02-20",
   },
   {
     id: "3",
-    name: "Maria Silva",
-    email: "maria@mastertrack.com",
+    name: "Maria Santos",
+    email: "maria@globaltrading.com.br",
     role: "user",
+    companyId: "company-2",
     createdAt: "2024-03-10",
+  },
+  {
+    id: "4",
+    name: "Carlos Ferreira",
+    email: "carlos@exportamais.com.br",
+    role: "user",
+    companyId: "company-3",
+    createdAt: "2024-04-05",
   },
 ];
 
 function AdminUsersPage() {
   const { isAuthenticated, isLoading, isAdmin } = useAuth();
+  const { companies, getCompanyById } = useCompanies();
   const navigate = useNavigate();
   const [users, setUsers] = useState<MockUser[]>(INITIAL_USERS);
   const [showAddForm, setShowAddForm] = useState(false);
-  const [newUser, setNewUser] = useState<{ name: string; email: string; role: "admin" | "user" }>({
+  const [editingUser, setEditingUser] = useState<MockUser | null>(null);
+  const [newUser, setNewUser] = useState<{
+    name: string;
+    email: string;
+    role: "admin" | "user";
+    companyId: string;
+  }>({
     name: "",
     email: "",
     role: "user",
+    companyId: "",
+  });
+  const [editForm, setEditForm] = useState<{
+    name: string;
+    email: string;
+    role: "admin" | "user";
+    companyId: string;
+  }>({
+    name: "",
+    email: "",
+    role: "user",
+    companyId: "",
   });
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -86,15 +117,18 @@ function AdminUsersPage() {
 
   const handleAddUser = (e: React.FormEvent) => {
     e.preventDefault();
-    const user: MockUser = {
+    const baseUser = {
       id: String(Date.now()),
       name: newUser.name,
       email: newUser.email,
       role: newUser.role,
       createdAt: new Date().toISOString().split("T")[0] ?? "",
     };
+    const user: MockUser = newUser.companyId
+      ? { ...baseUser, companyId: newUser.companyId }
+      : baseUser;
     setUsers([...users, user]);
-    setNewUser({ name: "", email: "", role: "user" });
+    setNewUser({ name: "", email: "", role: "user", companyId: "" });
     setShowAddForm(false);
   };
 
@@ -102,6 +136,36 @@ function AdminUsersPage() {
     if (window.confirm("Tem certeza que deseja remover este usuario?")) {
       setUsers(users.filter((u) => u.id !== userId));
     }
+  };
+
+  const handleStartEdit = (user: MockUser) => {
+    setEditingUser(user);
+    setEditForm({
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      companyId: user.companyId ?? "",
+    });
+  };
+
+  const handleEditUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setUsers(
+      users.map((u) => {
+        if (u.id !== editingUser.id) return u;
+        const baseUser = {
+          ...u,
+          name: editForm.name,
+          email: editForm.email,
+          role: editForm.role,
+        };
+        return editForm.companyId ? { ...baseUser, companyId: editForm.companyId } : baseUser;
+      })
+    );
+    setEditingUser(null);
+    setEditForm({ name: "", email: "", role: "user", companyId: "" });
   };
 
   return (
@@ -183,6 +247,25 @@ function AdminUsersPage() {
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
+                {newUser.role === "user" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="new-user-company">Empresa</Label>
+                    <select
+                      id="new-user-company"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={newUser.companyId}
+                      onChange={(e) => setNewUser({ ...newUser, companyId: e.target.value })}
+                      required
+                    >
+                      <option value="">Selecione uma empresa</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-3 pt-4">
                   <Button
                     type="button"
@@ -194,6 +277,89 @@ function AdminUsersPage() {
                   </Button>
                   <Button type="submit" className="flex-1">
                     Adicionar
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit User Form Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in-up">
+          <Card className="w-full max-w-md mx-4 animate-scale-in">
+            <CardHeader>
+              <CardTitle>Editar Usuario</CardTitle>
+              <CardDescription>Altere os dados do usuario</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleEditUser} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-user-name">Nome</Label>
+                  <Input
+                    id="edit-user-name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="Nome completo"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-user-email">Email</Label>
+                  <Input
+                    id="edit-user-email"
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    placeholder="email@exemplo.com"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-user-role">Tipo de Usuario</Label>
+                  <select
+                    id="edit-user-role"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={editForm.role}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, role: e.target.value as "admin" | "user" })
+                    }
+                  >
+                    <option value="user">Usuario</option>
+                    <option value="admin">Administrador</option>
+                  </select>
+                </div>
+                {editForm.role === "user" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="edit-user-company">Empresa</Label>
+                    <select
+                      id="edit-user-company"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      value={editForm.companyId}
+                      onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
+                      required
+                    >
+                      <option value="">Selecione uma empresa</option>
+                      {companies.map((company) => (
+                        <option key={company.id} value={company.id}>
+                          {company.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setEditingUser(null)}
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button type="submit" className="flex-1">
+                    Salvar
                   </Button>
                 </div>
               </form>
@@ -350,15 +516,46 @@ function AdminUsersPage() {
                     <div>
                       <p className="font-medium text-foreground">{user.name}</p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
+                      {user.companyId && (
+                        <p className="text-xs text-primary/70 mt-0.5">
+                          {getCompanyById(user.companyId)?.name}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
                     <Badge variant={user.role === "admin" ? "default" : "secondary"}>
                       {user.role === "admin" ? "Admin" : "Usuario"}
                     </Badge>
-                    <span className="text-xs text-muted-foreground hidden sm:block">
+                    {user.companyId && (
+                      <Badge variant="outline" className="hidden md:flex">
+                        {getCompanyById(user.companyId)?.name.split(" ")[0]}
+                      </Badge>
+                    )}
+                    <span className="text-xs text-muted-foreground hidden lg:block">
                       Criado em {user.createdAt}
                     </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:text-primary hover:bg-primary/10"
+                      onClick={() => handleStartEdit(user)}
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-4 w-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </Button>
                     <Button
                       variant="ghost"
                       size="icon"

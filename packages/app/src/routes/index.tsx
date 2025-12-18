@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { type MapRoutePoint, ShipTrackingMap } from "../components/ship-tracking-map";
+import { ShipTrackingMap } from "../components/ship-tracking-map";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -14,284 +14,22 @@ import {
   SheetTitle,
 } from "../components/ui/sheet";
 import { useAuth } from "../contexts/auth-context";
+import { type CompanyContainer, useCompanies } from "../contexts/companies-context";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
 });
 
-// Container types - using MapRoutePoint for route with coordinates
-type RoutePoint = MapRoutePoint;
-
-interface Container {
-  id: string;
-  number: string;
-  isFrozen: boolean;
-  status: "a_embarcar" | "embarcado" | "em_transito" | "entregue";
-  paymentStatus: "ok" | "pendente";
-  origin: string;
-  destination: string;
-  departureDate: string;
-  arrivalForecast: string;
-  progress: number;
-  route: RoutePoint[];
-  cargo: string;
-  weight: string;
-}
-
-// Mock container data with real port coordinates
-const MOCK_CONTAINERS: Container[] = [
-  {
-    id: "1",
-    number: "MSCU7234561",
-    isFrozen: true,
-    status: "em_transito",
-    paymentStatus: "ok",
-    origin: "Shanghai, China",
-    destination: "Santos, Brasil",
-    departureDate: "2024-12-01",
-    arrivalForecast: "2025-01-15",
-    progress: 65,
-    cargo: "Produtos Congelados",
-    weight: "22.5 ton",
-    route: [
-      {
-        location: "Shanghai, China",
-        lat: 31.2304,
-        lng: 121.4737,
-        date: "01/12/2024",
-        status: "completed",
-      },
-      {
-        location: "Singapore",
-        lat: 1.3521,
-        lng: 103.8198,
-        date: "08/12/2024",
-        status: "completed",
-      },
-      {
-        location: "Cape Town, Africa do Sul",
-        lat: -33.9249,
-        lng: 18.4241,
-        date: "22/12/2024",
-        status: "current",
-      },
-      {
-        location: "Santos, Brasil",
-        lat: -23.9608,
-        lng: -46.3336,
-        date: "15/01/2025",
-        status: "pending",
-      },
-    ],
-  },
-  {
-    id: "2",
-    number: "MAEU9876543",
-    isFrozen: false,
-    status: "embarcado",
-    paymentStatus: "ok",
-    origin: "Rotterdam, Holanda",
-    destination: "Paranagua, Brasil",
-    departureDate: "2024-12-10",
-    arrivalForecast: "2025-01-20",
-    progress: 35,
-    cargo: "Maquinario Industrial",
-    weight: "18.2 ton",
-    route: [
-      {
-        location: "Rotterdam, Holanda",
-        lat: 51.9244,
-        lng: 4.4777,
-        date: "10/12/2024",
-        status: "completed",
-      },
-      {
-        location: "Lisboa, Portugal",
-        lat: 38.7223,
-        lng: -9.1393,
-        date: "15/12/2024",
-        status: "current",
-      },
-      {
-        location: "Paranagua, Brasil",
-        lat: -25.5163,
-        lng: -48.5225,
-        date: "20/01/2025",
-        status: "pending",
-      },
-    ],
-  },
-  {
-    id: "3",
-    number: "CMAU4567890",
-    isFrozen: true,
-    status: "a_embarcar",
-    paymentStatus: "pendente",
-    origin: "Busan, Coreia do Sul",
-    destination: "Rio Grande, Brasil",
-    departureDate: "2024-12-20",
-    arrivalForecast: "2025-02-05",
-    progress: 0,
-    cargo: "Frutos do Mar",
-    weight: "20.0 ton",
-    route: [
-      {
-        location: "Busan, Coreia do Sul",
-        lat: 35.1796,
-        lng: 129.0756,
-        date: "20/12/2024",
-        status: "pending",
-      },
-      { location: "Hong Kong", lat: 22.3193, lng: 114.1694, date: "25/12/2024", status: "pending" },
-      {
-        location: "Durban, Africa do Sul",
-        lat: -29.8587,
-        lng: 31.0218,
-        date: "10/01/2025",
-        status: "pending",
-      },
-      {
-        location: "Rio Grande, Brasil",
-        lat: -32.0353,
-        lng: -52.0986,
-        date: "05/02/2025",
-        status: "pending",
-      },
-    ],
-  },
-  {
-    id: "4",
-    number: "OOLU1122334",
-    isFrozen: false,
-    status: "entregue",
-    paymentStatus: "ok",
-    origin: "Hamburg, Alemanha",
-    destination: "Itajai, Brasil",
-    departureDate: "2024-11-01",
-    arrivalForecast: "2024-12-10",
-    progress: 100,
-    cargo: "Pecas Automotivas",
-    weight: "15.8 ton",
-    route: [
-      {
-        location: "Hamburg, Alemanha",
-        lat: 53.5511,
-        lng: 9.9937,
-        date: "01/11/2024",
-        status: "completed",
-      },
-      {
-        location: "Algeciras, Espanha",
-        lat: 36.1408,
-        lng: -5.4536,
-        date: "08/11/2024",
-        status: "completed",
-      },
-      {
-        location: "Itajai, Brasil",
-        lat: -26.9078,
-        lng: -48.6619,
-        date: "10/12/2024",
-        status: "completed",
-      },
-    ],
-  },
-  {
-    id: "5",
-    number: "HLCU5544332",
-    isFrozen: false,
-    status: "em_transito",
-    paymentStatus: "pendente",
-    origin: "Los Angeles, EUA",
-    destination: "Santos, Brasil",
-    departureDate: "2024-12-05",
-    arrivalForecast: "2025-01-10",
-    progress: 50,
-    cargo: "Eletronicos",
-    weight: "12.3 ton",
-    route: [
-      {
-        location: "Los Angeles, EUA",
-        lat: 33.7501,
-        lng: -118.2197,
-        date: "05/12/2024",
-        status: "completed",
-      },
-      {
-        location: "Canal do Panama",
-        lat: 9.08,
-        lng: -79.68,
-        date: "12/12/2024",
-        status: "completed",
-      },
-      {
-        location: "Cartagena, Colombia",
-        lat: 10.391,
-        lng: -75.4794,
-        date: "18/12/2024",
-        status: "current",
-      },
-      {
-        location: "Santos, Brasil",
-        lat: -23.9608,
-        lng: -46.3336,
-        date: "10/01/2025",
-        status: "pending",
-      },
-    ],
-  },
-  {
-    id: "6",
-    number: "EISU7788990",
-    isFrozen: true,
-    status: "entregue",
-    paymentStatus: "ok",
-    origin: "Yokohama, Japao",
-    destination: "Navegantes, Brasil",
-    departureDate: "2024-10-15",
-    arrivalForecast: "2024-12-01",
-    progress: 100,
-    cargo: "Produtos Refrigerados",
-    weight: "21.0 ton",
-    route: [
-      {
-        location: "Yokohama, Japao",
-        lat: 35.4437,
-        lng: 139.638,
-        date: "15/10/2024",
-        status: "completed",
-      },
-      {
-        location: "Manila, Filipinas",
-        lat: 14.5995,
-        lng: 120.9842,
-        date: "22/10/2024",
-        status: "completed",
-      },
-      {
-        location: "Singapore",
-        lat: 1.3521,
-        lng: 103.8198,
-        date: "30/10/2024",
-        status: "completed",
-      },
-      {
-        location: "Navegantes, Brasil",
-        lat: -26.8986,
-        lng: -48.6544,
-        date: "01/12/2024",
-        status: "completed",
-      },
-    ],
-  },
-];
-
 function DashboardPage() {
   const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
+  const { getCompanyContainers } = useCompanies();
   const navigate = useNavigate();
-  const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
+  const [selectedContainer, setSelectedContainer] = useState<CompanyContainer | null>(null);
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Get containers for user's company
+  const userContainers = user?.companyId ? getCompanyContainers(user.companyId) : [];
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -305,7 +43,7 @@ function DashboardPage() {
   }
 
   // Filter containers
-  const filteredContainers = MOCK_CONTAINERS.filter((container) => {
+  const filteredContainers = userContainers.filter((container) => {
     const matchesSearch =
       container.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
       container.cargo.toLowerCase().includes(searchTerm.toLowerCase());
@@ -333,7 +71,7 @@ function DashboardPage() {
     aEntregar: filteredContainers.filter((c) => c.status !== "entregue").length,
   };
 
-  const getStatusLabel = (status: Container["status"]) => {
+  const getStatusLabel = (status: CompanyContainer["status"]) => {
     const labels = {
       a_embarcar: "A Embarcar",
       embarcado: "Embarcado",
@@ -343,7 +81,7 @@ function DashboardPage() {
     return labels[status];
   };
 
-  const getStatusColor = (status: Container["status"]) => {
+  const getStatusColor = (status: CompanyContainer["status"]) => {
     const colors = {
       a_embarcar: "bg-amber-100 text-amber-800 border-amber-200",
       embarcado: "bg-blue-100 text-blue-800 border-blue-200",
@@ -375,6 +113,25 @@ function DashboardPage() {
         <p className="text-muted-foreground">
           Acompanhe seus containers e o status das suas entregas.
         </p>
+        {user?.companyName && (
+          <div className="flex items-center gap-2 mt-3">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-4 w-4 text-primary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            <span className="text-sm font-medium text-primary">{user.companyName}</span>
+          </div>
+        )}
       </div>
 
       {/* Date Filter */}

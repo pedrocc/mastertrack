@@ -72,12 +72,14 @@ function LoginPage() {
           <div className="animate-slide-in-left">
             {/* Logo mark */}
             <div className="mb-8 flex items-center gap-4">
-              <div className="w-14 h-14 bg-primary rounded-lg flex items-center justify-center shadow-lg shadow-primary/30">
-                <span className="text-2xl font-black text-white">M</span>
-              </div>
+              <img
+                src="/logo.png"
+                alt="Masterboi"
+                className="w-14 h-14 rounded-lg shadow-lg shadow-primary/30"
+              />
               <div className="h-14 w-px bg-white/20" />
               <span className="text-sm font-medium tracking-widest text-white/60 uppercase">
-                Sistema de Gestao
+                Uma plataforma Masterboi
               </span>
             </div>
 
@@ -88,15 +90,16 @@ function LoginPage() {
 
             {/* Tagline */}
             <p className="text-xl text-white/60 font-light max-w-md leading-relaxed">
-              Controle total sobre seus processos. Visibilidade completa. Resultados precisos.
+              Acompanhe suas exportacoes de ponta a ponta. Visibilidade total do seu pedido.
+              Transparencia em cada etapa.
             </p>
 
             {/* Feature highlights */}
             <div className="mt-12 space-y-4">
               {[
-                "Gestao de usuarios simplificada",
-                "Dashboard em tempo real",
-                "Relatorios inteligentes",
+                "Acompanhamento completo de solicitacoes",
+                "Status de exportacoes em tempo real",
+                "Historico e documentacao centralizada",
               ].map((feature, i) => (
                 <div
                   key={feature}
@@ -118,9 +121,7 @@ function LoginPage() {
           {/* Mobile logo */}
           <div className="lg:hidden mb-12 text-center">
             <div className="inline-flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-primary rounded-lg flex items-center justify-center">
-                <span className="text-xl font-black text-white">M</span>
-              </div>
+              <img src="/logo.png" alt="Masterboi" className="w-12 h-12 rounded-lg" />
             </div>
             <h1 className="brand-logo text-4xl text-foreground">
               Master<span className="text-primary">track</span>
@@ -239,27 +240,6 @@ function LoginPage() {
               )}
             </Button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-8 p-4 rounded-lg bg-muted/50 border border-border">
-            <p className="text-xs font-medium text-muted-foreground mb-3 uppercase tracking-wider">
-              Credenciais de teste
-            </p>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Admin:</span>
-                <code className="text-xs bg-white px-2 py-1 rounded border">
-                  admin@mastertrack.com / admin123
-                </code>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Usuario:</span>
-                <code className="text-xs bg-white px-2 py-1 rounded border">
-                  user@mastertrack.com / user123
-                </code>
-              </div>
-            </div>
-          </div>
 
           {/* Footer */}
           <p className="mt-8 text-center text-xs text-muted-foreground">

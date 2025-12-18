@@ -1,8 +1,8 @@
-import type { AuthUser, UserRole } from "@mastertrack/shared";
+import type { UserRole, UserWithCompany } from "@mastertrack/shared";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 interface AuthContextType {
-  user: AuthUser | null;
+  user: UserWithCompany | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -13,7 +13,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 // Mock users for development (in production, this would use Supabase Auth)
-const MOCK_USERS: Record<string, { password: string; user: AuthUser }> = {
+const MOCK_USERS: Record<string, { password: string; user: UserWithCompany }> = {
   "admin@mastertrack.com": {
     password: "admin123",
     user: {
@@ -28,8 +28,32 @@ const MOCK_USERS: Record<string, { password: string; user: AuthUser }> = {
     user: {
       id: "2",
       email: "user@mastertrack.com",
-      name: "Usuario Teste",
+      name: "Joao Silva",
       role: "user" as UserRole,
+      companyId: "company-1",
+      companyName: "Importadora Brasil Sul Ltda",
+    },
+  },
+  "maria@globaltrading.com.br": {
+    password: "user123",
+    user: {
+      id: "3",
+      email: "maria@globaltrading.com.br",
+      name: "Maria Santos",
+      role: "user" as UserRole,
+      companyId: "company-2",
+      companyName: "Global Trading S.A.",
+    },
+  },
+  "carlos@exportamais.com.br": {
+    password: "user123",
+    user: {
+      id: "4",
+      email: "carlos@exportamais.com.br",
+      name: "Carlos Ferreira",
+      role: "user" as UserRole,
+      companyId: "company-3",
+      companyName: "Exporta Mais Comercio Exterior",
     },
   },
 };
@@ -41,7 +65,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<AuthUser | null>(null);
+  const [user, setUser] = useState<UserWithCompany | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Load user from localStorage on mount
@@ -49,7 +73,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const stored = localStorage.getItem(AUTH_STORAGE_KEY);
     if (stored) {
       try {
-        const parsed = JSON.parse(stored) as AuthUser;
+        const parsed = JSON.parse(stored) as UserWithCompany;
         setUser(parsed);
       } catch {
         localStorage.removeItem(AUTH_STORAGE_KEY);
