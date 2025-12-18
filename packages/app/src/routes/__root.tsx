@@ -86,6 +86,12 @@ function RootLayout() {
                 {isAdmin && (
                   <>
                     <Link
+                      to="/admin/requests"
+                      className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    >
+                      Requisicoes
+                    </Link>
+                    <Link
                       to="/admin/companies"
                       className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
                     >
