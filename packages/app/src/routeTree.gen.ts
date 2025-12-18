@@ -14,7 +14,9 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UsersUserIdRouteImport } from './routes/users/$userId'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminSlaSettingsRouteImport } from './routes/admin/sla-settings'
 import { Route as AdminRequestsRouteImport } from './routes/admin/requests'
+import { Route as AdminMessagesRouteImport } from './routes/admin/messages'
 import { Route as AdminCompaniesRouteImport } from './routes/admin/companies'
 
 const RequestsRoute = RequestsRouteImport.update({
@@ -42,9 +44,19 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSlaSettingsRoute = AdminSlaSettingsRouteImport.update({
+  id: '/admin/sla-settings',
+  path: '/admin/sla-settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRequestsRoute = AdminRequestsRouteImport.update({
   id: '/admin/requests',
   path: '/admin/requests',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminMessagesRoute = AdminMessagesRouteImport.update({
+  id: '/admin/messages',
+  path: '/admin/messages',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminCompaniesRoute = AdminCompaniesRouteImport.update({
@@ -58,7 +70,9 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/requests': typeof RequestsRoute
   '/admin/companies': typeof AdminCompaniesRoute
+  '/admin/messages': typeof AdminMessagesRoute
   '/admin/requests': typeof AdminRequestsRoute
+  '/admin/sla-settings': typeof AdminSlaSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -67,7 +81,9 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/requests': typeof RequestsRoute
   '/admin/companies': typeof AdminCompaniesRoute
+  '/admin/messages': typeof AdminMessagesRoute
   '/admin/requests': typeof AdminRequestsRoute
+  '/admin/sla-settings': typeof AdminSlaSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -77,7 +93,9 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/requests': typeof RequestsRoute
   '/admin/companies': typeof AdminCompaniesRoute
+  '/admin/messages': typeof AdminMessagesRoute
   '/admin/requests': typeof AdminRequestsRoute
+  '/admin/sla-settings': typeof AdminSlaSettingsRoute
   '/admin/users': typeof AdminUsersRoute
   '/users/$userId': typeof UsersUserIdRoute
 }
@@ -88,7 +106,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/requests'
     | '/admin/companies'
+    | '/admin/messages'
     | '/admin/requests'
+    | '/admin/sla-settings'
     | '/admin/users'
     | '/users/$userId'
   fileRoutesByTo: FileRoutesByTo
@@ -97,7 +117,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/requests'
     | '/admin/companies'
+    | '/admin/messages'
     | '/admin/requests'
+    | '/admin/sla-settings'
     | '/admin/users'
     | '/users/$userId'
   id:
@@ -106,7 +128,9 @@ export interface FileRouteTypes {
     | '/login'
     | '/requests'
     | '/admin/companies'
+    | '/admin/messages'
     | '/admin/requests'
+    | '/admin/sla-settings'
     | '/admin/users'
     | '/users/$userId'
   fileRoutesById: FileRoutesById
@@ -116,7 +140,9 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   RequestsRoute: typeof RequestsRoute
   AdminCompaniesRoute: typeof AdminCompaniesRoute
+  AdminMessagesRoute: typeof AdminMessagesRoute
   AdminRequestsRoute: typeof AdminRequestsRoute
+  AdminSlaSettingsRoute: typeof AdminSlaSettingsRoute
   AdminUsersRoute: typeof AdminUsersRoute
   UsersUserIdRoute: typeof UsersUserIdRoute
 }
@@ -158,11 +184,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/sla-settings': {
+      id: '/admin/sla-settings'
+      path: '/admin/sla-settings'
+      fullPath: '/admin/sla-settings'
+      preLoaderRoute: typeof AdminSlaSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/requests': {
       id: '/admin/requests'
       path: '/admin/requests'
       fullPath: '/admin/requests'
       preLoaderRoute: typeof AdminRequestsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/messages': {
+      id: '/admin/messages'
+      path: '/admin/messages'
+      fullPath: '/admin/messages'
+      preLoaderRoute: typeof AdminMessagesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/companies': {
@@ -180,7 +220,9 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   RequestsRoute: RequestsRoute,
   AdminCompaniesRoute: AdminCompaniesRoute,
+  AdminMessagesRoute: AdminMessagesRoute,
   AdminRequestsRoute: AdminRequestsRoute,
+  AdminSlaSettingsRoute: AdminSlaSettingsRoute,
   AdminUsersRoute: AdminUsersRoute,
   UsersUserIdRoute: UsersUserIdRoute,
 }

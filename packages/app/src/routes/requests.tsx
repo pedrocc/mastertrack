@@ -1,5 +1,20 @@
+import type { RequestComment } from "@mastertrack/api";
+import type { JsonSerialized } from "@mastertrack/shared";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { api, handleResponse } from "../lib/api";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "../components/ui/alert-dialog";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
@@ -7,7 +22,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
@@ -46,12 +60,33 @@ export const Route = createFileRoute("/requests")({
 
 function RequestsPage() {
   const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
-  const { getCompanyRequests, createRequest, updateRequestData, updateRequestStatus } =
-    useRequests();
+  const {
+    getCompanyRequests,
+    createRequest,
+    updateRequestData,
+    updateRequestStatus,
+    markStatusAsSeen,
+  } = useRequests();
   const { addNotification } = useNotifications();
   const navigate = useNavigate();
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [showNewRequestForm, setShowNewRequestForm] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+
+  // Query for comments of selected request
+  const { data: commentsData, isLoading: isLoadingComments } = useQuery({
+    queryKey: ["request-comments", selectedRequest?.id],
+    queryFn: async () => {
+      if (!selectedRequest?.id) return { data: [] };
+      const res = await api.api.requests[":requestId"].comments.$get({
+        param: { requestId: selectedRequest.id },
+      });
+      return handleResponse<{ data: JsonSerialized<RequestComment>[] }>(res);
+    },
+    enabled: !!selectedRequest?.id && !showNewRequestForm && !isEditing,
+  });
+
+  const comments = commentsData?.data || [];
 
   // Get requests for user's company
   const userRequests = user?.companyId ? getCompanyRequests(user.companyId) : [];
@@ -71,27 +106,31 @@ function RequestsPage() {
     return null;
   }
 
-  const handleCreateRequest = (type: RequestType) => {
+  const handleCreateRequest = async (type: RequestType) => {
     if (!user?.companyId) return;
-    const newRequest = createRequest(user.companyId, type);
-    setSelectedRequest(newRequest);
-    setShowNewRequestForm(true);
+    try {
+      const newRequest = await createRequest(user.companyId, type);
+      setSelectedRequest(newRequest);
+      setShowNewRequestForm(true);
+    } catch (error) {
+      console.error("Error creating request:", error);
+    }
   };
 
   const getStatusLabel = (status: RequestStatus) => {
     const labels: Record<RequestStatus, string> = {
+      aberta: "Aberta",
       em_andamento: "Em Andamento",
-      aguardando_cliente: "Aguardando Resposta",
-      concluido: "Concluido",
-      cancelado: "Cancelado",
+      concluido: "Concluída",
+      cancelado: "Cancelada",
     };
     return labels[status];
   };
 
   const getStatusColor = (status: RequestStatus) => {
     const colors: Record<RequestStatus, string> = {
+      aberta: "bg-purple-100 text-purple-800 border-purple-200",
       em_andamento: "bg-blue-100 text-blue-800 border-blue-200",
-      aguardando_cliente: "bg-amber-100 text-amber-800 border-amber-200",
       concluido: "bg-green-100 text-green-800 border-green-200",
       cancelado: "bg-red-100 text-red-800 border-red-200",
     };
@@ -622,151 +661,72 @@ function RequestsPage() {
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <p className="text-muted-foreground mb-4">Nenhuma requisicao encontrada.</p>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline">Criar primeira requisicao</Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="center" className="w-72 max-h-80 overflow-y-auto">
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Pre-Embarque
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("pre_proforma")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Pre-Proforma</p>
-                        <p className="text-xs text-muted-foreground">Informacoes logisticas</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("dados_importador")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Dados Importador</p>
-                        <p className="text-xs text-muted-foreground">
-                          Importer, Consignee e Notify
-                        </p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("schedule_proforma")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Schedule e Proforma</p>
-                        <p className="text-xs text-muted-foreground">Aprovacao de embarque</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Documentos
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("fichas_tecnicas")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Fichas Tecnicas</p>
-                        <p className="text-xs text-muted-foreground">Fichas e etiquetas</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("drafts")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Drafts</p>
-                        <p className="text-xs text-muted-foreground">Solicitar drafts</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("schedule_booking")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Schedule do Booking</p>
-                        <p className="text-xs text-muted-foreground">Dados do booking</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Alteracoes
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("alteracao_documento")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Alteracao de Documento</p>
-                        <p className="text-xs text-muted-foreground">Invoice, Packing List</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("alteracao_bl")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Alteracao de BL</p>
-                        <p className="text-xs text-muted-foreground">Pode gerar custo</p>
-                      </div>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">
-                      Liberacao
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onClick={() => handleCreateRequest("telex_release")}
-                      className="cursor-pointer"
-                    >
-                      <div>
-                        <p className="font-medium">Telex Release</p>
-                        <p className="text-xs text-muted-foreground">Liberacao de carga</p>
-                      </div>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <p className="text-muted-foreground">Nenhuma requisicao encontrada.</p>
+                <p className="text-sm text-muted-foreground/70 mt-2">
+                  Clique em "Nova Requisicao" acima para criar sua primeira solicitacao.
+                </p>
               </div>
             ) : (
               userRequests.map((request) => (
                 <button
                   type="button"
                   key={request.id}
-                  className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/30 transition-colors cursor-pointer w-full text-left"
+                  className={`flex items-center justify-between p-4 rounded-lg border transition-colors cursor-pointer w-full text-left ${
+                    !request.statusSeenByClient
+                      ? "border-primary bg-primary/5 hover:bg-primary/10"
+                      : "border-border hover:bg-muted/30"
+                  }`}
                   onClick={() => {
+                    if (!request.statusSeenByClient) {
+                      markStatusAsSeen(request.id);
+                    }
                     setSelectedRequest(request);
                     setShowNewRequestForm(false);
                   }}
                 >
                   <div className="flex items-center gap-4">
-                    <div
-                      className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                        request.status === "concluido"
-                          ? "bg-green-100 text-green-600"
-                          : request.status === "em_andamento"
-                            ? "bg-blue-100 text-blue-600"
-                            : "bg-amber-100 text-amber-600"
-                      }`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="h-5 w-5"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
+                    <div className="relative">
+                      <div
+                        className={`h-10 w-10 rounded-lg flex items-center justify-center ${
+                          request.status === "concluido"
+                            ? "bg-green-100 text-green-600"
+                            : request.status === "em_andamento"
+                              ? "bg-blue-100 text-blue-600"
+                              : "bg-amber-100 text-amber-600"
+                        }`}
                       >
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                        <polyline points="14 2 14 8 20 8" />
-                      </svg>
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-5 w-5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <polyline points="14 2 14 8 20 8" />
+                        </svg>
+                      </div>
+                      {/* Indicador de status atualizado */}
+                      {!request.statusSeenByClient && (
+                        <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+                          <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+                        </span>
+                      )}
                     </div>
                     <div>
-                      <p className="font-medium text-foreground">{request.title}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium text-foreground">{request.title}</p>
+                        {!request.statusSeenByClient && (
+                          <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+                            ATUALIZADO
+                          </span>
+                        )}
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         Criado em {formatDate(request.createdAt)}
                       </p>
@@ -804,6 +764,7 @@ function RequestsPage() {
           if (!open) {
             setSelectedRequest(null);
             setShowNewRequestForm(false);
+            setIsEditing(false);
           }
         }}
       >
@@ -862,12 +823,11 @@ function RequestsPage() {
                 </div>
               </SheetHeader>
 
-              {showNewRequestForm || selectedRequest.status === "em_andamento" ? (
+              {showNewRequestForm || isEditing ? (
                 <RequestForm
                   request={selectedRequest}
                   onUpdateData={(data) => updateRequestData(selectedRequest.id, data)}
                   onComplete={() => {
-                    updateRequestStatus(selectedRequest.id, "concluido");
                     addNotification({
                       title: "Requisicao Enviada",
                       message: `${selectedRequest.title} foi enviada com sucesso`,
@@ -875,15 +835,151 @@ function RequestsPage() {
                       requestId: selectedRequest.id,
                       requestType: selectedRequest.type,
                     });
-                    setShowNewRequestForm(false);
-                  }}
-                  onCancel={() => {
                     setSelectedRequest(null);
                     setShowNewRequestForm(false);
+                    setIsEditing(false);
+                  }}
+                  onCancel={() => {
+                    if (isEditing) {
+                      setIsEditing(false);
+                    } else {
+                      setSelectedRequest(null);
+                      setShowNewRequestForm(false);
+                    }
                   }}
                 />
               ) : (
-                <RequestSummary request={selectedRequest} />
+                <>
+                  <RequestSummary request={selectedRequest} />
+
+                  {/* Comments Section (read-only for client) */}
+                  {comments.length > 0 && (
+                    <div className="mt-6 pt-6 border-t">
+                      <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="h-4 w-4 text-muted-foreground"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                        >
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                        Comentarios da Equipe ({comments.length})
+                      </h4>
+                      <div className="space-y-3">
+                        {comments.map((comment) => (
+                          <div
+                            key={comment.id}
+                            className="p-3 rounded-lg bg-blue-50 border border-blue-200"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-sm font-medium text-blue-800">
+                                {comment.authorName}
+                              </span>
+                              <span className="text-xs text-blue-600">
+                                {new Date(comment.createdAt).toLocaleDateString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="text-sm text-blue-900 whitespace-pre-wrap">
+                              {comment.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {isLoadingComments && (
+                    <div className="mt-6 pt-6 border-t">
+                      <p className="text-sm text-muted-foreground">Carregando comentarios...</p>
+                    </div>
+                  )}
+
+                  {/* Action buttons based on status */}
+                  {(selectedRequest.status === "aberta" ||
+                    selectedRequest.status === "em_andamento") && (
+                    <div className="flex gap-3 mt-6 pt-6 border-t">
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" className="flex-1">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="h-4 w-4 mr-2"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden="true"
+                            >
+                              <circle cx="12" cy="12" r="10" />
+                              <line x1="15" y1="9" x2="9" y2="15" />
+                              <line x1="9" y1="9" x2="15" y2="15" />
+                            </svg>
+                            Cancelar Requisicao
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Cancelar requisicao?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja cancelar esta requisicao? Esta acao nao pode
+                              ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Voltar</AlertDialogCancel>
+                            <AlertDialogAction
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                              onClick={() => {
+                                updateRequestStatus(selectedRequest.id, "cancelado", true);
+                                addNotification({
+                                  title: "Requisicao Cancelada",
+                                  message: `${selectedRequest.title} foi cancelada`,
+                                  type: "request_status",
+                                  requestId: selectedRequest.id,
+                                  requestType: selectedRequest.type,
+                                });
+                                setSelectedRequest(null);
+                              }}
+                            >
+                              Sim, cancelar
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                      {selectedRequest.status === "aberta" && (
+                        <Button className="flex-1" onClick={() => setIsEditing(true)}>
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4 mr-2"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            aria-hidden="true"
+                          >
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Editar Requisicao
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -1307,14 +1403,55 @@ function PreProformaForm({ request, onUpdateData, onComplete, onCancel }: PrePro
 function PreProformaSummary({ request }: { request: Request }) {
   const data = request.data as PreProformaData;
 
+  const statusConfig = {
+    aberta: {
+      bg: "bg-purple-50",
+      border: "border-purple-200",
+      iconColor: "text-purple-600",
+      titleColor: "text-purple-800",
+      textColor: "text-purple-700",
+      title: "Requisicao Enviada",
+      description: "Aguardando analise da equipe.",
+    },
+    em_andamento: {
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      iconColor: "text-blue-600",
+      titleColor: "text-blue-800",
+      textColor: "text-blue-700",
+      title: "Em Andamento",
+      description: "Sua requisicao esta sendo processada.",
+    },
+    concluido: {
+      bg: "bg-green-50",
+      border: "border-green-200",
+      iconColor: "text-green-600",
+      titleColor: "text-green-800",
+      textColor: "text-green-700",
+      title: "Requisicao Concluida",
+      description: "Sua proforma sera estruturada com base nas informacoes abaixo.",
+    },
+    cancelado: {
+      bg: "bg-red-50",
+      border: "border-red-200",
+      iconColor: "text-red-600",
+      titleColor: "text-red-800",
+      textColor: "text-red-700",
+      title: "Requisicao Cancelada",
+      description: "Esta requisicao foi cancelada.",
+    },
+  };
+
+  const config = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberta;
+
   return (
     <div className="space-y-6">
-      {/* Completed Banner */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      {/* Status Banner */}
+      <div className={`${config.bg} ${config.border} border rounded-lg p-4`}>
         <div className="flex gap-3">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-green-600 flex-shrink-0"
+            className={`h-5 w-5 ${config.iconColor} flex-shrink-0`}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -1327,10 +1464,8 @@ function PreProformaSummary({ request }: { request: Request }) {
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-green-800">Requisicao Concluida</p>
-            <p className="text-sm text-green-700 mt-1">
-              Sua proforma sera estruturada com base nas informacoes abaixo.
-            </p>
+            <p className={`text-sm font-medium ${config.titleColor}`}>{config.title}</p>
+            <p className={`text-sm ${config.textColor} mt-1`}>{config.description}</p>
           </div>
         </div>
       </div>
@@ -1484,7 +1619,13 @@ function PreProformaSummary({ request }: { request: Request }) {
       {/* Timestamp */}
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          Concluida em{" "}
+          {request.status === "concluido"
+            ? "Concluida em"
+            : request.status === "cancelado"
+              ? "Cancelada em"
+              : request.status === "em_andamento"
+                ? "Atualizada em"
+                : "Enviada em"}{" "}
           {new Date(request.updatedAt).toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "2-digit",
@@ -1762,6 +1903,47 @@ function DadosImportadorForm({
 function DadosImportadorSummary({ request }: { request: Request }) {
   const data = request.data as DadosImportadorData;
 
+  const statusConfig = {
+    aberta: {
+      bg: "bg-purple-50",
+      border: "border-purple-200",
+      iconColor: "text-purple-600",
+      titleColor: "text-purple-800",
+      textColor: "text-purple-700",
+      title: "Dados Enviados",
+      description: "Aguardando analise da equipe.",
+    },
+    em_andamento: {
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      iconColor: "text-blue-600",
+      titleColor: "text-blue-800",
+      textColor: "text-blue-700",
+      title: "Em Andamento",
+      description: "Seus dados estao sendo processados.",
+    },
+    concluido: {
+      bg: "bg-green-50",
+      border: "border-green-200",
+      iconColor: "text-green-600",
+      titleColor: "text-green-800",
+      textColor: "text-green-700",
+      title: "Dados Cadastrados",
+      description: "Os dados das partes foram registrados com sucesso.",
+    },
+    cancelado: {
+      bg: "bg-red-50",
+      border: "border-red-200",
+      iconColor: "text-red-600",
+      titleColor: "text-red-800",
+      textColor: "text-red-700",
+      title: "Requisicao Cancelada",
+      description: "Esta requisicao foi cancelada.",
+    },
+  };
+
+  const config = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberta;
+
   const renderPartySummary = (title: string, party: PartyData | null, icon: React.ReactNode) => {
     if (!party) return null;
 
@@ -1788,12 +1970,12 @@ function DadosImportadorSummary({ request }: { request: Request }) {
 
   return (
     <div className="space-y-6">
-      {/* Completed Banner */}
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      {/* Status Banner */}
+      <div className={`${config.bg} ${config.border} border rounded-lg p-4`}>
         <div className="flex gap-3">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-green-600 flex-shrink-0"
+            className={`h-5 w-5 ${config.iconColor} flex-shrink-0`}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -1806,10 +1988,8 @@ function DadosImportadorSummary({ request }: { request: Request }) {
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-green-800">Dados Cadastrados</p>
-            <p className="text-sm text-green-700 mt-1">
-              Os dados das partes foram registrados com sucesso.
-            </p>
+            <p className={`text-sm font-medium ${config.titleColor}`}>{config.title}</p>
+            <p className={`text-sm ${config.textColor} mt-1`}>{config.description}</p>
           </div>
         </div>
       </div>
@@ -1896,7 +2076,13 @@ function DadosImportadorSummary({ request }: { request: Request }) {
       {/* Timestamp */}
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          Concluida em{" "}
+          {request.status === "concluido"
+            ? "Concluida em"
+            : request.status === "cancelado"
+              ? "Cancelada em"
+              : request.status === "em_andamento"
+                ? "Atualizada em"
+                : "Enviada em"}{" "}
           {new Date(request.updatedAt).toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "2-digit",
@@ -2797,13 +2983,50 @@ function GenericSummary({
   title: string;
   items: { label: string; value: string }[];
 }) {
+  const statusConfig = {
+    aberta: {
+      bg: "bg-purple-50",
+      border: "border-purple-200",
+      iconColor: "text-purple-600",
+      titleColor: "text-purple-800",
+      textColor: "text-purple-700",
+      description: "Aguardando analise da equipe.",
+    },
+    em_andamento: {
+      bg: "bg-blue-50",
+      border: "border-blue-200",
+      iconColor: "text-blue-600",
+      titleColor: "text-blue-800",
+      textColor: "text-blue-700",
+      description: "Sua requisicao esta sendo processada.",
+    },
+    concluido: {
+      bg: "bg-green-50",
+      border: "border-green-200",
+      iconColor: "text-green-600",
+      titleColor: "text-green-800",
+      textColor: "text-green-700",
+      description: "Requisicao processada com sucesso.",
+    },
+    cancelado: {
+      bg: "bg-red-50",
+      border: "border-red-200",
+      iconColor: "text-red-600",
+      titleColor: "text-red-800",
+      textColor: "text-red-700",
+      description: "Esta requisicao foi cancelada.",
+    },
+  };
+
+  const config = statusConfig[request.status as keyof typeof statusConfig] || statusConfig.aberta;
+
   return (
     <div className="space-y-6">
-      <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <div className={`${config.bg} ${config.border} border rounded-lg p-4`}>
         <div className="flex gap-3">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className="h-5 w-5 text-green-600 flex-shrink-0"
+            className={`h-5 w-5 ${config.iconColor} flex-shrink-0`}
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -2816,8 +3039,8 @@ function GenericSummary({
             <polyline points="22 4 12 14.01 9 11.01" />
           </svg>
           <div>
-            <p className="text-sm font-medium text-green-800">{title}</p>
-            <p className="text-sm text-green-700 mt-1">Requisicao processada com sucesso.</p>
+            <p className={`text-sm font-medium ${config.titleColor}`}>{title}</p>
+            <p className={`text-sm ${config.textColor} mt-1`}>{config.description}</p>
           </div>
         </div>
       </div>
@@ -2836,7 +3059,13 @@ function GenericSummary({
       </div>
       <div className="pt-4 border-t">
         <p className="text-xs text-muted-foreground text-center">
-          Concluida em{" "}
+          {request.status === "concluido"
+            ? "Concluida em"
+            : request.status === "cancelado"
+              ? "Cancelada em"
+              : request.status === "em_andamento"
+                ? "Atualizada em"
+                : "Enviada em"}{" "}
           {new Date(request.updatedAt).toLocaleDateString("pt-BR", {
             day: "2-digit",
             month: "2-digit",

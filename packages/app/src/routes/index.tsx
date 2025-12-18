@@ -458,7 +458,7 @@ function DashboardPage() {
                         <p className="font-mono font-bold text-foreground group-hover:text-primary transition-colors">
                           {container.number}
                         </p>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col">
                           {container.isFrozen && (
                             <span className="text-xs text-cyan-600 font-medium flex items-center gap-1">
                               <span className="h-1.5 w-1.5 rounded-full bg-cyan-500" />

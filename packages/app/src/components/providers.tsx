@@ -4,6 +4,8 @@ import { AuthProvider } from "../contexts/auth-context";
 import { CompaniesProvider } from "../contexts/companies-context";
 import { NotificationsProvider } from "../contexts/notifications-context";
 import { RequestsProvider } from "../contexts/requests-context";
+import { SLASettingsProvider } from "../contexts/sla-settings-context";
+import { SupportChatProvider } from "../contexts/support-chat-context";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,13 +27,17 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <CompaniesProvider>
-        <RequestsProvider>
-          <NotificationsProvider>
-            <AuthProvider>{children}</AuthProvider>
-          </NotificationsProvider>
-        </RequestsProvider>
-      </CompaniesProvider>
+      <SLASettingsProvider>
+        <SupportChatProvider>
+          <CompaniesProvider>
+            <RequestsProvider>
+              <NotificationsProvider>
+                <AuthProvider>{children}</AuthProvider>
+              </NotificationsProvider>
+            </RequestsProvider>
+          </CompaniesProvider>
+        </SupportChatProvider>
+      </SLASettingsProvider>
     </QueryClientProvider>
   );
 }

@@ -1,22 +1,15 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import type { Request, RequestStatus, RequestType } from "@mastertrack/api";
+import type { JsonSerialized } from "@mastertrack/shared";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createContext, useCallback, useContext, useMemo } from "react";
+import { api, handleResponse } from "../lib/api";
 
-// Types for request system
-export type RequestType =
-  | "pre_proforma"
-  | "dados_importador"
-  | "schedule_proforma"
-  | "fichas_tecnicas"
-  | "drafts"
-  | "alteracao_documento"
-  | "alteracao_bl"
-  | "schedule_booking"
-  | "telex_release"
-  | "documento"
-  | "embarque"
-  | "financeiro";
+type RequestJson = JsonSerialized<Request>;
 
-export type RequestStatus = "em_andamento" | "aguardando_cliente" | "concluido" | "cancelado";
+// Re-export types for convenience
+export type { RequestStatus, RequestType };
 
+// Data types for each request type
 export interface PreProformaData {
   paletizacao: boolean | null;
   restricaoArmador: { has: boolean; value: string } | null;
@@ -114,121 +107,14 @@ export type RequestData =
   | TelexReleaseData
   | Record<string, unknown>;
 
-export interface Request {
-  id: string;
-  companyId: string;
-  type: RequestType;
-  title: string;
-  status: RequestStatus;
-  createdAt: string;
-  updatedAt: string;
-  data: RequestData;
-}
-
-interface RequestsContextType {
-  requests: Request[];
-  getCompanyRequests: (companyId: string) => Request[];
-  createRequest: (companyId: string, type: RequestType) => Request;
-  updateRequestData: (requestId: string, data: Partial<RequestData>) => void;
-  updateRequestStatus: (requestId: string, status: RequestStatus) => void;
-  getRequestById: (id: string) => Request | undefined;
-}
-
-const RequestsContext = createContext<RequestsContextType | null>(null);
-
 // Empty party data template
-const EMPTY_PARTY: PartyData = {
+export const EMPTY_PARTY: PartyData = {
   companyName: "",
   address: "",
   contactPerson: "",
   phone: "",
   email: "",
 };
-
-// Mock initial requests
-const INITIAL_REQUESTS: Request[] = [
-  {
-    id: "req-1",
-    companyId: "company-1",
-    type: "pre_proforma",
-    title: "Pre-Proforma - Embarque #2024-001",
-    status: "concluido",
-    createdAt: "2024-12-10T10:30:00",
-    updatedAt: "2024-12-10T11:15:00",
-    data: {
-      paletizacao: true,
-      restricaoArmador: { has: false, value: "" },
-      limitePeso: { has: true, value: "25000" },
-    },
-  },
-  {
-    id: "req-2",
-    companyId: "company-1",
-    type: "pre_proforma",
-    title: "Pre-Proforma - Embarque #2024-002",
-    status: "em_andamento",
-    createdAt: "2024-12-15T14:00:00",
-    updatedAt: "2024-12-15T14:05:00",
-    data: {
-      paletizacao: false,
-      restricaoArmador: null,
-      limitePeso: null,
-    },
-  },
-  {
-    id: "req-3",
-    companyId: "company-2",
-    type: "pre_proforma",
-    title: "Pre-Proforma - Embarque #2024-003",
-    status: "concluido",
-    createdAt: "2024-12-12T09:00:00",
-    updatedAt: "2024-12-12T09:30:00",
-    data: {
-      paletizacao: false,
-      restricaoArmador: { has: true, value: "Maersk" },
-      limitePeso: { has: false, value: "" },
-    },
-  },
-  {
-    id: "req-4",
-    companyId: "company-1",
-    type: "dados_importador",
-    title: "Dados Importador - Embarque #2024-004",
-    status: "concluido",
-    createdAt: "2024-12-11T08:00:00",
-    updatedAt: "2024-12-11T09:00:00",
-    data: {
-      importer: {
-        companyName: "Brasil Sul Importadora",
-        address: "Rua das Palmeiras, 500 - Itajai, SC",
-        contactPerson: "Joao Silva",
-        phone: "(47) 3333-4444",
-        email: "joao@brasilsul.com.br",
-      },
-      consigneeBL: {
-        companyName: "Brasil Sul Importadora",
-        address: "Rua das Palmeiras, 500 - Itajai, SC",
-        contactPerson: "Joao Silva",
-        phone: "(47) 3333-4444",
-        email: "joao@brasilsul.com.br",
-      },
-      consigneeHC: {
-        companyName: "Brasil Sul Importadora",
-        address: "Rua das Palmeiras, 500 - Itajai, SC",
-        contactPerson: "Maria Costa",
-        phone: "(47) 3333-5555",
-        email: "maria@brasilsul.com.br",
-      },
-      notifyParty: {
-        companyName: "Despachante Express",
-        address: "Av. Portuaria, 100 - Santos, SP",
-        contactPerson: "Carlos Mendes",
-        phone: "(13) 9999-8888",
-        email: "carlos@despachante.com.br",
-      },
-    },
-  },
-];
 
 const REQUEST_TYPE_TITLES: Record<RequestType, string> = {
   pre_proforma: "Pre-Proforma",
@@ -322,12 +208,152 @@ const getInitialData = (type: RequestType): RequestData => {
   }
 };
 
+// Extended request type with parsed data and proper types
+export interface RequestWithData extends Omit<RequestJson, "data" | "status" | "type"> {
+  data: RequestData;
+  status: RequestStatus;
+  type: RequestType;
+}
+
+interface RequestsContextType {
+  requests: RequestWithData[];
+  isLoading: boolean;
+  getCompanyRequests: (companyId: string) => RequestWithData[];
+  createRequest: (companyId: string, type: RequestType) => Promise<RequestWithData>;
+  updateRequestData: (requestId: string, data: Partial<RequestData>) => Promise<void>;
+  updateRequestStatus: (
+    requestId: string,
+    status: RequestStatus,
+    seenByClient?: boolean
+  ) => Promise<void>;
+  getRequestById: (id: string) => RequestWithData | undefined;
+  // Cliente
+  markStatusAsSeen: (requestId: string) => Promise<void>;
+  getUnseenStatusCount: (companyId: string) => number;
+  // Admin
+  markAsSeenByAdmin: (requestId: string) => Promise<void>;
+  getUnseenByAdminCount: () => number;
+}
+
+const RequestsContext = createContext<RequestsContextType | null>(null);
+
 interface RequestsProviderProps {
   children: React.ReactNode;
 }
 
+// Helper to parse request data
+const parseRequestData = (request: RequestJson): RequestWithData => {
+  let parsedData: RequestData;
+  try {
+    parsedData = JSON.parse(request.data) as RequestData;
+  } catch {
+    parsedData = {};
+  }
+  return {
+    ...request,
+    data: parsedData,
+    status: request.status as RequestStatus,
+    type: request.type as RequestType,
+  };
+};
+
 export function RequestsProvider({ children }: RequestsProviderProps) {
-  const [requests, setRequests] = useState<Request[]>(INITIAL_REQUESTS);
+  const queryClient = useQueryClient();
+
+  // Fetch all requests
+  const { data: rawRequests = [], isLoading } = useQuery({
+    queryKey: ["requests"],
+    queryFn: async () => {
+      const response = await api.api.requests.$get();
+      const result = await handleResponse<{ data: RequestJson[] }>(response);
+      return result.data;
+    },
+    staleTime: 0,
+    refetchInterval: 10000, // Poll every 10 seconds
+  });
+
+  // Parse requests data
+  const requests = useMemo(() => rawRequests.map(parseRequestData), [rawRequests]);
+
+  // Create request mutation
+  const createRequestMutation = useMutation({
+    mutationFn: async ({ companyId, type }: { companyId: string; type: RequestType }) => {
+      const requestNumber = `${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+      const title = `${REQUEST_TYPE_TITLES[type]} - Embarque #${requestNumber}`;
+      const data = JSON.stringify(getInitialData(type));
+
+      const response = await api.api.requests.$post({
+        json: { companyId, type, title, data },
+      });
+      const result = await handleResponse<{ data: RequestJson }>(response);
+      return parseRequestData(result.data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
+  });
+
+  // Update request data mutation
+  const updateDataMutation = useMutation({
+    mutationFn: async ({ requestId, data }: { requestId: string; data: Partial<RequestData> }) => {
+      // Get current request data
+      const current = requests.find((r) => r.id === requestId);
+      const mergedData = { ...(current?.data || {}), ...data };
+
+      const response = await api.api.requests[":id"].data.$put({
+        param: { id: requestId },
+        json: { data: JSON.stringify(mergedData) },
+      });
+      return handleResponse<{ data: RequestJson }>(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
+  });
+
+  // Update request status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({
+      requestId,
+      status,
+      seenByClient,
+    }: {
+      requestId: string;
+      status: RequestStatus;
+      seenByClient: boolean;
+    }) => {
+      const response = await api.api.requests[":id"].status.$put({
+        param: { id: requestId },
+        json: { status, seenByClient },
+      });
+      return handleResponse<{ data: RequestJson }>(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
+  });
+
+  // Mark as seen mutation
+  const markSeenMutation = useMutation({
+    mutationFn: async ({
+      requestId,
+      seenByAdmin,
+      statusSeenByClient,
+    }: {
+      requestId: string;
+      seenByAdmin?: boolean;
+      statusSeenByClient?: boolean;
+    }) => {
+      const response = await api.api.requests[":id"].seen.$put({
+        param: { id: requestId },
+        json: { seenByAdmin, statusSeenByClient },
+      });
+      return handleResponse<{ data: RequestJson }>(response);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["requests"] });
+    },
+  });
 
   const getCompanyRequests = useCallback(
     (companyId: string) => {
@@ -345,59 +371,74 @@ export function RequestsProvider({ children }: RequestsProviderProps) {
     [requests]
   );
 
-  const createRequest = useCallback((companyId: string, type: RequestType): Request => {
-    const now = new Date().toISOString();
-    const requestNumber = `${new Date().getFullYear()}-${String(Date.now()).slice(-3)}`;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mutateAsync is stable
+  const createRequest = useCallback(
+    async (companyId: string, type: RequestType): Promise<RequestWithData> => {
+      return createRequestMutation.mutateAsync({ companyId, type });
+    },
+    []
+  );
 
-    const newRequest: Request = {
-      id: `req-${Date.now()}`,
-      companyId,
-      type,
-      title: `${REQUEST_TYPE_TITLES[type]} - Embarque #${requestNumber}`,
-      status: "em_andamento",
-      createdAt: now,
-      updatedAt: now,
-      data: getInitialData(type),
-    };
-
-    setRequests((prev) => [newRequest, ...prev]);
-    return newRequest;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mutateAsync is stable
+  const updateRequestData = useCallback(async (requestId: string, data: Partial<RequestData>) => {
+    await updateDataMutation.mutateAsync({ requestId, data });
   }, []);
 
-  const updateRequestData = useCallback((requestId: string, data: Partial<RequestData>) => {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId
-          ? { ...r, data: { ...r.data, ...data }, updatedAt: new Date().toISOString() }
-          : r
-      )
-    );
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mutateAsync is stable
+  const updateRequestStatus = useCallback(
+    async (requestId: string, status: RequestStatus, seenByClient = false) => {
+      await updateStatusMutation.mutateAsync({ requestId, status, seenByClient });
+    },
+    []
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mutateAsync is stable
+  const markStatusAsSeen = useCallback(async (requestId: string) => {
+    await markSeenMutation.mutateAsync({ requestId, statusSeenByClient: true });
   }, []);
 
-  const updateRequestStatus = useCallback((requestId: string, status: RequestStatus) => {
-    setRequests((prev) =>
-      prev.map((r) =>
-        r.id === requestId ? { ...r, status, updatedAt: new Date().toISOString() } : r
-      )
-    );
+  const getUnseenStatusCount = useCallback(
+    (companyId: string) => {
+      return requests.filter((r) => r.companyId === companyId && !r.statusSeenByClient).length;
+    },
+    [requests]
+  );
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mutateAsync is stable
+  const markAsSeenByAdmin = useCallback(async (requestId: string) => {
+    await markSeenMutation.mutateAsync({ requestId, seenByAdmin: true });
   }, []);
+
+  const getUnseenByAdminCount = useCallback(() => {
+    return requests.filter((r) => !r.seenByAdmin).length;
+  }, [requests]);
 
   const value = useMemo(
     () => ({
       requests,
+      isLoading,
       getCompanyRequests,
       createRequest,
       updateRequestData,
       updateRequestStatus,
       getRequestById,
+      markStatusAsSeen,
+      getUnseenStatusCount,
+      markAsSeenByAdmin,
+      getUnseenByAdminCount,
     }),
     [
       requests,
+      isLoading,
       getCompanyRequests,
       createRequest,
       updateRequestData,
       updateRequestStatus,
       getRequestById,
+      markStatusAsSeen,
+      getUnseenStatusCount,
+      markAsSeenByAdmin,
+      getUnseenByAdminCount,
     ]
   );
 
@@ -412,4 +453,5 @@ export function useRequests() {
   return context;
 }
 
-export { EMPTY_PARTY };
+// Re-export type for components that need the full request type
+export type { RequestWithData as Request };

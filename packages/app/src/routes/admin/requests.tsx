@@ -1,3 +1,5 @@
+import type { RequestComment } from "@mastertrack/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Badge } from "../../components/ui/badge";
@@ -17,6 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "../../components/ui/sheet";
+import { Textarea } from "../../components/ui/textarea";
 import { useCompanies } from "../../contexts/companies-context";
 import {
   useRequests,
@@ -24,29 +27,32 @@ import {
   type RequestStatus,
   type RequestType,
 } from "../../contexts/requests-context";
+import { useSLASettings, type SLAStatus } from "../../contexts/sla-settings-context";
+import { api, handleResponse } from "../../lib/api";
+import type { JsonSerialized } from "@mastertrack/shared";
 
 export const Route = createFileRoute("/admin/requests")({
   component: AdminRequestsPage,
 });
 
 const STATUS_CONFIG: Record<RequestStatus, { label: string; color: string; bgColor: string }> = {
+  aberta: {
+    label: "Aberta",
+    color: "text-purple-700",
+    bgColor: "bg-purple-50 border-purple-200",
+  },
   em_andamento: {
     label: "Em Andamento",
     color: "text-blue-700",
     bgColor: "bg-blue-50 border-blue-200",
   },
-  aguardando_cliente: {
-    label: "Aguardando Cliente",
-    color: "text-amber-700",
-    bgColor: "bg-amber-50 border-amber-200",
-  },
   concluido: {
-    label: "Concluido",
+    label: "Concluída",
     color: "text-green-700",
     bgColor: "bg-green-50 border-green-200",
   },
   cancelado: {
-    label: "Cancelado",
+    label: "Cancelada",
     color: "text-red-700",
     bgColor: "bg-red-50 border-red-200",
   },
@@ -67,19 +73,60 @@ const REQUEST_TYPE_LABELS: Record<RequestType, string> = {
   financeiro: "Solicitacao Financeira",
 };
 
-const KANBAN_COLUMNS: RequestStatus[] = [
-  "em_andamento",
-  "aguardando_cliente",
-  "concluido",
-  "cancelado",
-];
+const KANBAN_COLUMNS: RequestStatus[] = ["aberta", "em_andamento", "concluido", "cancelado"];
 
 function AdminRequestsPage() {
-  const { requests, updateRequestStatus, getRequestById } = useRequests();
+  const { requests, updateRequestStatus, getRequestById, markAsSeenByAdmin } = useRequests();
   const { getCompanyById } = useCompanies();
+  const { calculateSLAStatus } = useSLASettings();
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRequest, setSelectedRequest] = useState<Request | null>(null);
   const [filterType, setFilterType] = useState<RequestType | "all">("all");
+  const [commentText, setCommentText] = useState("");
+
+  // Query for comments of selected request
+  const { data: commentsData, isLoading: isLoadingComments } = useQuery({
+    queryKey: ["request-comments", selectedRequest?.id],
+    queryFn: async () => {
+      if (!selectedRequest?.id) return { data: [] };
+      const res = await api.api.requests[":requestId"].comments.$get({
+        param: { requestId: selectedRequest.id },
+      });
+      return handleResponse<{ data: JsonSerialized<RequestComment>[] }>(res);
+    },
+    enabled: !!selectedRequest?.id,
+  });
+
+  const comments = commentsData?.data || [];
+
+  // Mutation to add a comment
+  const addCommentMutation = useMutation({
+    mutationFn: async (data: { requestId: string; content: string }) => {
+      const res = await api.api.requests[":requestId"].comments.$post({
+        param: { requestId: data.requestId },
+        json: {
+          authorId: "admin-1", // TODO: Get from auth context
+          authorName: "Administrador",
+          authorRole: "admin" as const,
+          content: data.content,
+        },
+      });
+      return handleResponse<{ data: JsonSerialized<RequestComment> }>(res);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["request-comments", selectedRequest?.id] });
+      setCommentText("");
+    },
+  });
+
+  const handleAddComment = () => {
+    if (!selectedRequest?.id || !commentText.trim()) return;
+    addCommentMutation.mutate({
+      requestId: selectedRequest.id,
+      content: commentText.trim(),
+    });
+  };
 
   // Filter requests
   const filteredRequests = useMemo(() => {
@@ -96,8 +143,8 @@ function AdminRequestsPage() {
   // Group requests by status
   const requestsByStatus = useMemo(() => {
     const grouped: Record<RequestStatus, Request[]> = {
+      aberta: [],
       em_andamento: [],
-      aguardando_cliente: [],
       concluido: [],
       cancelado: [],
     };
@@ -139,8 +186,8 @@ function AdminRequestsPage() {
   const stats = useMemo(() => {
     return {
       total: requests.length,
+      aberta: requests.filter((r) => r.status === "aberta").length,
       emAndamento: requests.filter((r) => r.status === "em_andamento").length,
-      aguardando: requests.filter((r) => r.status === "aguardando_cliente").length,
       concluido: requests.filter((r) => r.status === "concluido").length,
       cancelado: requests.filter((r) => r.status === "cancelado").length,
     };
@@ -164,28 +211,28 @@ function AdminRequestsPage() {
             <p className="text-xs text-muted-foreground">Total</p>
           </CardContent>
         </Card>
+        <Card className="border-purple-200 bg-purple-50/50">
+          <CardContent className="pt-4 pb-4">
+            <div className="text-2xl font-bold text-purple-700">{stats.aberta}</div>
+            <p className="text-xs text-purple-600">Aberta</p>
+          </CardContent>
+        </Card>
         <Card className="border-blue-200 bg-blue-50/50">
           <CardContent className="pt-4 pb-4">
             <div className="text-2xl font-bold text-blue-700">{stats.emAndamento}</div>
             <p className="text-xs text-blue-600">Em Andamento</p>
           </CardContent>
         </Card>
-        <Card className="border-amber-200 bg-amber-50/50">
-          <CardContent className="pt-4 pb-4">
-            <div className="text-2xl font-bold text-amber-700">{stats.aguardando}</div>
-            <p className="text-xs text-amber-600">Aguardando</p>
-          </CardContent>
-        </Card>
         <Card className="border-green-200 bg-green-50/50">
           <CardContent className="pt-4 pb-4">
             <div className="text-2xl font-bold text-green-700">{stats.concluido}</div>
-            <p className="text-xs text-green-600">Concluido</p>
+            <p className="text-xs text-green-600">Concluída</p>
           </CardContent>
         </Card>
         <Card className="border-red-200 bg-red-50/50">
           <CardContent className="pt-4 pb-4">
             <div className="text-2xl font-bold text-red-700">{stats.cancelado}</div>
-            <p className="text-xs text-red-600">Cancelado</p>
+            <p className="text-xs text-red-600">Cancelada</p>
           </CardContent>
         </Card>
       </div>
@@ -276,8 +323,14 @@ function AdminRequestsPage() {
                     request={request}
                     companyName={getCompanyById(request.companyId)?.name || "Empresa desconhecida"}
                     onStatusChange={handleStatusChange}
-                    onViewDetails={() => setSelectedRequest(request)}
+                    onViewDetails={() => {
+                      if (!request.seenByAdmin) {
+                        markAsSeenByAdmin(request.id);
+                      }
+                      setSelectedRequest(request);
+                    }}
                     formatDate={formatDate}
+                    slaStatus={calculateSLAStatus(request.createdAt, request.type)}
                   />
                 ))
               )}
@@ -374,82 +427,57 @@ function AdminRequestsPage() {
                   </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="border-t pt-4">
-                  <span className="text-sm font-medium text-muted-foreground mb-3 block">
-                    Acoes Rapidas
+                {/* Comments Section */}
+                <div className="pt-4 border-t">
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Comentarios ({comments.length})
                   </span>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedRequest.status !== "concluido" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-200 hover:bg-green-50"
-                        onClick={() => handleStatusChange(selectedRequest.id, "concluido")}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 mr-1"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
+
+                  {/* Add Comment Form */}
+                  <div className="mt-3 space-y-2">
+                    <Textarea
+                      placeholder="Adicionar comentario para o cliente..."
+                      value={commentText}
+                      onChange={(e) => setCommentText(e.target.value)}
+                      className="min-h-[80px]"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleAddComment}
+                      disabled={!commentText.trim() || addCommentMutation.isPending}
+                    >
+                      {addCommentMutation.isPending ? "Enviando..." : "Adicionar Comentario"}
+                    </Button>
+                  </div>
+
+                  {/* Comments List */}
+                  <div className="mt-4 space-y-3">
+                    {isLoadingComments ? (
+                      <p className="text-sm text-muted-foreground">Carregando comentarios...</p>
+                    ) : comments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">Nenhum comentario ainda.</p>
+                    ) : (
+                      comments.map((comment) => (
+                        <div
+                          key={comment.id}
+                          className="p-3 rounded-lg bg-muted/50 border border-border"
                         >
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                        Concluir
-                      </Button>
-                    )}
-                    {selectedRequest.status !== "aguardando_cliente" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-amber-600 border-amber-200 hover:bg-amber-50"
-                        onClick={() => handleStatusChange(selectedRequest.id, "aguardando_cliente")}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 mr-1"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <circle cx="12" cy="12" r="10" />
-                          <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                        Aguardar Cliente
-                      </Button>
-                    )}
-                    {selectedRequest.status !== "cancelado" && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 border-red-200 hover:bg-red-50"
-                        onClick={() => handleStatusChange(selectedRequest.id, "cancelado")}
-                      >
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-4 w-4 mr-1"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="M18 6 6 18" />
-                          <path d="m6 6 12 12" />
-                        </svg>
-                        Cancelar
-                      </Button>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-sm font-medium">{comment.authorName}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(comment.createdAt).toLocaleDateString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground whitespace-pre-wrap">
+                            {comment.content}
+                          </p>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
@@ -468,6 +496,7 @@ interface KanbanCardProps {
   onStatusChange: (requestId: string, status: RequestStatus) => void;
   onViewDetails: () => void;
   formatDate: (date: string) => string;
+  slaStatus: SLAStatus;
 }
 
 function KanbanCard({
@@ -476,12 +505,128 @@ function KanbanCard({
   onStatusChange,
   onViewDetails,
   formatDate,
+  slaStatus,
 }: KanbanCardProps) {
+  // Only show SLA for non-completed and non-cancelled requests
+  const showSLA = request.status !== "concluido" && request.status !== "cancelado";
+
+  const getSLADisplay = () => {
+    if (!showSLA) return null;
+
+    if (slaStatus.isOverdue) {
+      const overdueDays = Math.abs(slaStatus.daysRemaining);
+      const overdueHours = Math.abs(slaStatus.hoursRemaining) % 24;
+      return {
+        text:
+          overdueDays > 0
+            ? `${overdueDays}d ${overdueHours}h atrasado`
+            : `${overdueHours}h atrasado`,
+        className: "bg-red-100 text-red-700 border-red-200",
+        icon: (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-3 w-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        ),
+      };
+    }
+
+    if (slaStatus.isCritical) {
+      return {
+        text: `${slaStatus.hoursRemaining}h restantes`,
+        className: "bg-red-100 text-red-700 border-red-200",
+        icon: (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-3 w-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        ),
+      };
+    }
+
+    if (slaStatus.isWarning) {
+      return {
+        text: `${slaStatus.hoursRemaining}h restantes`,
+        className: "bg-amber-100 text-amber-700 border-amber-200",
+        icon: (
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-3 w-3"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        ),
+      };
+    }
+
+    return {
+      text: `${slaStatus.daysRemaining}d restantes`,
+      className: "bg-green-100 text-green-700 border-green-200",
+      icon: (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="h-3 w-3"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 6 12 12 16 14" />
+        </svg>
+      ),
+    };
+  };
+
+  const slaDisplay = getSLADisplay();
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition-shadow group"
+      className={`cursor-pointer hover:shadow-md transition-shadow group relative ${
+        !request.seenByAdmin ? "ring-2 ring-primary ring-offset-2 bg-primary/5" : ""
+      }`}
       onClick={onViewDetails}
     >
+      {/* Indicador de nova requisicao */}
+      {!request.seenByAdmin && (
+        <div className="absolute -top-1.5 -right-1.5 z-10">
+          <span className="flex h-3 w-3">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75" />
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-primary" />
+          </span>
+        </div>
+      )}
       <CardHeader className="p-3 pb-2">
         <div className="flex items-start justify-between gap-2">
           <CardTitle className="text-sm font-medium line-clamp-2 group-hover:text-primary transition-colors">
@@ -531,6 +676,14 @@ function KanbanCard({
             {REQUEST_TYPE_LABELS[request.type]}
           </Badge>
           <p className="text-xs text-muted-foreground truncate">{companyName}</p>
+          {slaDisplay && (
+            <div
+              className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium border ${slaDisplay.className}`}
+            >
+              {slaDisplay.icon}
+              <span>{slaDisplay.text}</span>
+            </div>
+          )}
           <p className="text-xs text-muted-foreground">{formatDate(request.updatedAt)}</p>
         </div>
       </CardContent>

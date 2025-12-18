@@ -10,8 +10,10 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { Toaster } from "../components/ui/toaster";
+import { SupportChatWidget } from "../components/support-chat-widget";
 import { useAuth } from "../contexts/auth-context";
-import { useNotifications } from "../contexts/notifications-context";
+import { useRequests } from "../contexts/requests-context";
+import { useSupportChat } from "../contexts/support-chat-context";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -19,8 +21,13 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
-  const { unreadCount, markAllAsRead } = useNotifications();
+  const { getUnseenStatusCount, getUnseenByAdminCount } = useRequests();
+  const { getUnreadCountForAdmin } = useSupportChat();
   const navigate = useNavigate();
+  const unreadMessages = getUnreadCountForAdmin();
+  // Badges de requisicoes
+  const clientUnseenRequests = user?.companyId ? getUnseenStatusCount(user.companyId) : 0;
+  const adminUnseenRequests = getUnseenByAdminCount();
 
   const handleLogout = () => {
     logout();
@@ -72,13 +79,12 @@ function RootLayout() {
                 {!isAdmin && (
                   <Link
                     to="/requests"
-                    onClick={markAllAsRead}
                     className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
                   >
                     Requisicoes
-                    {unreadCount > 0 && (
+                    {clientUnseenRequests > 0 && (
                       <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
-                        {unreadCount > 9 ? "9+" : unreadCount}
+                        {clientUnseenRequests > 9 ? "9+" : clientUnseenRequests}
                       </span>
                     )}
                   </Link>
@@ -87,9 +93,25 @@ function RootLayout() {
                   <>
                     <Link
                       to="/admin/requests"
-                      className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                      className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
                     >
                       Requisicoes
+                      {adminUnseenRequests > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                          {adminUnseenRequests > 9 ? "9+" : adminUnseenRequests}
+                        </span>
+                      )}
+                    </Link>
+                    <Link
+                      to="/admin/messages"
+                      className="relative px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    >
+                      Mensagens
+                      {unreadMessages > 0 && (
+                        <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-white">
+                          {unreadMessages > 9 ? "9+" : unreadMessages}
+                        </span>
+                      )}
                     </Link>
                     <Link
                       to="/admin/companies"
@@ -102,6 +124,12 @@ function RootLayout() {
                       className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
                     >
                       Usuarios
+                    </Link>
+                    <Link
+                      to="/admin/sla-settings"
+                      className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors [&.active]:text-primary [&.active]:bg-primary/5"
+                    >
+                      SLA
                     </Link>
                   </>
                 )}
@@ -186,6 +214,8 @@ function RootLayout() {
       )}
 
       <Toaster />
+      {/* Support Chat Widget - Only for clients */}
+      {isAuthenticated && !isAdmin && <SupportChatWidget />}
       {import.meta.env["DEV"] && <TanStackRouterDevtools position="bottom-right" />}
     </div>
   );

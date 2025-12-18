@@ -70,23 +70,23 @@ function LoginPage() {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center px-16 text-white">
           <div className="animate-slide-in-left">
-            {/* Logo mark */}
-            <div className="mb-8 flex items-center gap-4">
+            {/* Brand with logo */}
+            <div className="flex items-start gap-5 mb-8">
               <img
                 src="/logo.png"
                 alt="Masterboi"
-                className="w-14 h-14 rounded-lg shadow-lg shadow-primary/30"
+                className="w-16 h-16 rounded-lg shadow-lg shadow-primary/30 shrink-0"
               />
-              <div className="h-14 w-px bg-white/20" />
-              <span className="text-sm font-medium tracking-widest text-white/60 uppercase">
-                Uma plataforma Masterboi
-              </span>
+              <div className="w-px h-16 bg-white/20 shrink-0" />
+              <div className="flex flex-col justify-center">
+                <h1 className="brand-logo text-6xl text-white leading-none">
+                  Master<span className="text-primary">track</span>
+                </h1>
+                <p className="text-sm font-medium tracking-widest text-white/60 uppercase mt-2">
+                  Uma plataforma Masterboi
+                </p>
+              </div>
             </div>
-
-            {/* Brand name */}
-            <h1 className="brand-logo text-6xl text-white mb-4">
-              Master<span className="text-primary">track</span>
-            </h1>
 
             {/* Tagline */}
             <p className="text-xl text-white/60 font-light max-w-md leading-relaxed">
