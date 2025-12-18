@@ -2,8 +2,12 @@ import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import { z } from "zod";
 import {
   chatMessages,
+  companies,
+  containers,
+  containerStatuses,
   conversationStatuses,
   conversations,
+  paymentStatuses,
   requestComments,
   requests,
   requestStatuses,
@@ -20,6 +24,7 @@ export const insertUserSchema = createInsertSchema(users, {
   email: (schema) => schema.email.email("Email invalido").toLowerCase().trim(),
   name: (schema) => schema.name.min(2, "Nome deve ter no minimo 2 caracteres").trim(),
   role: (schema) => schema.role.optional(),
+  companyId: (schema) => schema.companyId.optional(),
 }).omit({
   id: true,
   createdAt: true,
@@ -47,6 +52,47 @@ export const userIdSchema = z.object({
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 export type SelectUser = z.infer<typeof selectUserSchema>;
+
+// ============================================
+// Schemas de Empresas
+// ============================================
+
+/**
+ * Schema de validacao para criar empresa
+ */
+export const insertCompanySchema = createInsertSchema(companies, {
+  name: (schema) => schema.name.min(2, "Nome deve ter no minimo 2 caracteres").trim(),
+  cnpj: (schema) => schema.cnpj.min(14, "CNPJ invalido").trim(),
+  email: (schema) => schema.email.email("Email invalido").toLowerCase().trim(),
+  phone: (schema) => schema.phone.optional(),
+  address: (schema) => schema.address.optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+/**
+ * Schema de validacao para atualizar empresa
+ */
+export const updateCompanySchema = insertCompanySchema.partial();
+
+/**
+ * Schema de validacao para empresa retornada
+ */
+export const selectCompanySchema = createSelectSchema(companies);
+
+/**
+ * Schema de validacao para ID de empresa
+ */
+export const companyIdSchema = z.object({
+  id: z.string().uuid("ID invalido"),
+});
+
+// Types inferidos dos schemas
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+export type UpdateCompany = z.infer<typeof updateCompanySchema>;
+export type SelectCompany = z.infer<typeof selectCompanySchema>;
 
 /**
  * Schema de tipo de requisicao
@@ -309,3 +355,111 @@ export const selectRequestCommentSchema = createSelectSchema(requestComments);
 export type InsertRequestComment = z.infer<typeof insertRequestCommentSchema>;
 export type CreateRequestComment = z.infer<typeof createRequestCommentSchema>;
 export type SelectRequestComment = z.infer<typeof selectRequestCommentSchema>;
+
+// ============================================
+// Schemas de Containers
+// ============================================
+
+/**
+ * Schema de status de container
+ */
+export const containerStatusSchema = z.enum(containerStatuses);
+
+/**
+ * Schema de status de pagamento
+ */
+export const paymentStatusSchema = z.enum(paymentStatuses);
+
+/**
+ * Schema de ponto de rota
+ */
+export const routePointSchema = z.object({
+  location: z.string(),
+  lat: z.number(),
+  lng: z.number(),
+  date: z.string(),
+  status: z.enum(["completed", "current", "pending"]),
+});
+
+/**
+ * Schema de validacao para criar container
+ */
+export const insertContainerSchema = createInsertSchema(containers, {
+  companyId: (schema) => schema.companyId,
+  number: (schema) => schema.number.min(1, "Numero do container obrigatorio"),
+  origin: (schema) => schema.origin.min(1, "Origem obrigatoria"),
+  destination: (schema) => schema.destination.min(1, "Destino obrigatorio"),
+  departureDate: (schema) => schema.departureDate.min(1, "Data de partida obrigatoria"),
+  arrivalForecast: (schema) => schema.arrivalForecast.min(1, "Previsao de chegada obrigatoria"),
+  cargo: (schema) => schema.cargo.min(1, "Carga obrigatoria"),
+  weight: (schema) => schema.weight.min(1, "Peso obrigatorio"),
+  status: () => containerStatusSchema.optional(),
+  paymentStatus: () => paymentStatusSchema.optional(),
+}).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+/**
+ * Schema para criar container via API
+ */
+export const createContainerSchema = z.object({
+  companyId: z.string().uuid("Company ID invalido"),
+  number: z.string().min(1, "Numero do container obrigatorio"),
+  isFrozen: z.boolean().optional().default(false),
+  status: containerStatusSchema.optional().default("a_embarcar"),
+  paymentStatus: paymentStatusSchema.optional().default("pendente"),
+  origin: z.string().min(1, "Origem obrigatoria"),
+  destination: z.string().min(1, "Destino obrigatorio"),
+  departureDate: z.string().min(1, "Data de partida obrigatoria"),
+  arrivalForecast: z.string().min(1, "Previsao de chegada obrigatoria"),
+  progress: z.number().min(0).max(100).optional().default(0),
+  route: z.string().optional().default("[]"),
+  cargo: z.string().min(1, "Carga obrigatoria"),
+  weight: z.string().min(1, "Peso obrigatorio"),
+});
+
+/**
+ * Schema para atualizar container
+ */
+export const updateContainerSchema = z.object({
+  number: z.string().min(1).optional(),
+  isFrozen: z.boolean().optional(),
+  status: containerStatusSchema.optional(),
+  paymentStatus: paymentStatusSchema.optional(),
+  origin: z.string().min(1).optional(),
+  destination: z.string().min(1).optional(),
+  departureDate: z.string().min(1).optional(),
+  arrivalForecast: z.string().min(1).optional(),
+  progress: z.number().min(0).max(100).optional(),
+  route: z.string().optional(),
+  cargo: z.string().min(1).optional(),
+  weight: z.string().min(1).optional(),
+});
+
+/**
+ * Schema de validacao para container retornado
+ */
+export const selectContainerSchema = createSelectSchema(containers);
+
+/**
+ * Schema de validacao para ID de container
+ */
+export const containerIdSchema = z.object({
+  id: z.string().uuid("ID de container invalido"),
+});
+
+/**
+ * Schema para filtrar containers por empresa
+ */
+export const containersByCompanySchema = z.object({
+  companyId: z.string().uuid("Company ID invalido"),
+});
+
+// Types inferidos dos schemas de Container
+export type InsertContainer = z.infer<typeof insertContainerSchema>;
+export type CreateContainer = z.infer<typeof createContainerSchema>;
+export type UpdateContainer = z.infer<typeof updateContainerSchema>;
+export type SelectContainer = z.infer<typeof selectContainerSchema>;
+export type RoutePoint = z.infer<typeof routePointSchema>;

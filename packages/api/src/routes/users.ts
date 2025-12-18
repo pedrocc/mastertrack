@@ -37,6 +37,25 @@ export const usersRoutes = new Hono()
   })
 
   /**
+   * GET /api/users/by-email/:email
+   * Busca usuario por email
+   * Requer autenticacao
+   */
+  .get("/by-email/:email", authMiddleware, async (c) => {
+    const email = c.req.param("email");
+
+    const user = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (!user) {
+      return c.json({ error: { code: "NOT_FOUND", message: "Usuario nao encontrado" } }, 404);
+    }
+
+    return c.json({ data: user });
+  })
+
+  /**
    * GET /api/users/:id
    * Busca usuario por ID
    * Requer autenticacao

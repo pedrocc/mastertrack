@@ -13,101 +13,71 @@ import {
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { useAuth } from "../../contexts/auth-context";
-import { useCompanies } from "../../contexts/companies-context";
+import { useCompaniesQuery } from "../../hooks/useCompanies";
+import { useCreateUser, useDeleteUser, useUpdateUser, useUsers } from "../../hooks/useUsers";
 
 export const Route = createFileRoute("/admin/users")({
   component: AdminUsersPage,
 });
 
-// Mock users data (in production would come from API)
-interface MockUser {
-  id: string;
+interface UserFormData {
   name: string;
   email: string;
   role: "admin" | "user";
-  companyId?: string;
-  createdAt: string;
+  companyId: string | null;
 }
 
-const INITIAL_USERS: MockUser[] = [
-  {
-    id: "1",
-    name: "Administrador",
-    email: "admin@mastertrack.com",
-    role: "admin",
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "2",
-    name: "Joao Silva",
-    email: "user@mastertrack.com",
-    role: "user",
-    companyId: "company-1",
-    createdAt: "2024-02-20",
-  },
-  {
-    id: "3",
-    name: "Maria Santos",
-    email: "maria@globaltrading.com.br",
-    role: "user",
-    companyId: "company-2",
-    createdAt: "2024-03-10",
-  },
-  {
-    id: "4",
-    name: "Carlos Ferreira",
-    email: "carlos@exportamais.com.br",
-    role: "user",
-    companyId: "company-3",
-    createdAt: "2024-04-05",
-  },
-];
-
 function AdminUsersPage() {
-  const { isAuthenticated, isLoading, isAdmin } = useAuth();
-  const { companies, getCompanyById } = useCompanies();
+  const { isAuthenticated, isLoading: authLoading, isAdmin } = useAuth();
   const navigate = useNavigate();
-  const [users, setUsers] = useState<MockUser[]>(INITIAL_USERS);
+
+  // API hooks
+  const { data: usersResponse, isLoading: usersLoading, error: usersError } = useUsers(1, 100);
+  const { data: companiesResponse } = useCompaniesQuery(1, 100);
+  const createUser = useCreateUser();
+  const updateUser = useUpdateUser();
+  const deleteUser = useDeleteUser();
+
   const [showAddForm, setShowAddForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<MockUser | null>(null);
-  const [newUser, setNewUser] = useState<{
-    name: string;
-    email: string;
-    role: "admin" | "user";
-    companyId: string;
-  }>({
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [newUser, setNewUser] = useState<UserFormData>({
     name: "",
     email: "",
     role: "user",
-    companyId: "",
+    companyId: null,
   });
-  const [editForm, setEditForm] = useState<{
-    name: string;
-    email: string;
-    role: "admin" | "user";
-    companyId: string;
-  }>({
+  const [editForm, setEditForm] = useState<UserFormData>({
     name: "",
     email: "",
     role: "user",
-    companyId: "",
+    companyId: null,
   });
   const [searchTerm, setSearchTerm] = useState("");
 
   // Redirect if not authenticated or not admin
   useEffect(() => {
-    if (!isLoading) {
+    if (!authLoading) {
       if (!isAuthenticated) {
         navigate({ to: "/login" });
       } else if (!isAdmin) {
         navigate({ to: "/" });
       }
     }
-  }, [isLoading, isAuthenticated, isAdmin, navigate]);
+  }, [authLoading, isAuthenticated, isAdmin, navigate]);
 
-  if (isLoading || !isAuthenticated || !isAdmin) {
+  if (authLoading || !isAuthenticated || !isAdmin) {
     return null;
   }
+
+  const users = usersResponse?.data ?? [];
+  const companies = companiesResponse?.data ?? [];
+
+  // Helper to get company name by ID
+  const getCompanyName = (companyId: string | null) => {
+    if (!companyId) return null;
+    const company = companies.find((c) => c.id === companyId);
+    return company?.name ?? null;
+  };
 
   const filteredUsers = users.filter(
     (user) =>
@@ -115,58 +85,81 @@ function AdminUsersPage() {
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const baseUser = {
-      id: String(Date.now()),
-      name: newUser.name,
-      email: newUser.email,
-      role: newUser.role,
-      createdAt: new Date().toISOString().split("T")[0] ?? "",
-    };
-    const user: MockUser = newUser.companyId
-      ? { ...baseUser, companyId: newUser.companyId }
-      : baseUser;
-    setUsers([...users, user]);
-    setNewUser({ name: "", email: "", role: "user", companyId: "" });
-    setShowAddForm(false);
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    if (window.confirm("Tem certeza que deseja remover este usuario?")) {
-      setUsers(users.filter((u) => u.id !== userId));
+    try {
+      await createUser.mutateAsync({
+        name: newUser.name,
+        email: newUser.email,
+        role: newUser.role,
+        companyId: newUser.companyId ?? undefined,
+      });
+      setNewUser({ name: "", email: "", role: "user", companyId: null });
+      setShowAddForm(false);
+    } catch (error) {
+      console.error("Erro ao criar usuario:", error);
+      alert(error instanceof Error ? error.message : "Erro ao criar usuario");
     }
   };
 
-  const handleStartEdit = (user: MockUser) => {
-    setEditingUser(user);
+  const handleDeleteUser = async (userId: string) => {
+    if (window.confirm("Tem certeza que deseja remover este usuario?")) {
+      try {
+        await deleteUser.mutateAsync(userId);
+      } catch (error) {
+        console.error("Erro ao remover usuario:", error);
+        alert(error instanceof Error ? error.message : "Erro ao remover usuario");
+      }
+    }
+  };
+
+  const handleStartEdit = (user: (typeof users)[0]) => {
+    setEditingUserId(user.id);
     setEditForm({
       name: user.name,
       email: user.email,
-      role: user.role,
-      companyId: user.companyId ?? "",
+      role: user.role as "admin" | "user",
+      companyId: user.companyId ?? null,
     });
   };
 
-  const handleEditUser = (e: React.FormEvent) => {
+  const handleEditUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUser) return;
+    if (!editingUserId) return;
 
-    setUsers(
-      users.map((u) => {
-        if (u.id !== editingUser.id) return u;
-        const baseUser = {
-          ...u,
+    try {
+      await updateUser.mutateAsync({
+        id: editingUserId,
+        data: {
           name: editForm.name,
           email: editForm.email,
           role: editForm.role,
-        };
-        return editForm.companyId ? { ...baseUser, companyId: editForm.companyId } : baseUser;
-      })
-    );
-    setEditingUser(null);
-    setEditForm({ name: "", email: "", role: "user", companyId: "" });
+          companyId: editForm.companyId ?? undefined,
+        },
+      });
+      setEditingUserId(null);
+      setEditForm({ name: "", email: "", role: "user", companyId: null });
+    } catch (error) {
+      console.error("Erro ao atualizar usuario:", error);
+      alert(error instanceof Error ? error.message : "Erro ao atualizar usuario");
+    }
   };
+
+  if (usersLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-muted-foreground">Carregando usuarios...</div>
+      </div>
+    );
+  }
+
+  if (usersError) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-red-500">Erro ao carregar usuarios: {usersError.message}</div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in-up">
@@ -247,36 +240,34 @@ function AdminUsersPage() {
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
-                {newUser.role === "user" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="new-user-company">Empresa</Label>
-                    <select
-                      id="new-user-company"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      value={newUser.companyId}
-                      onChange={(e) => setNewUser({ ...newUser, companyId: e.target.value })}
-                      required
-                    >
-                      <option value="">Selecione uma empresa</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="new-user-company">Empresa</Label>
+                  <select
+                    id="new-user-company"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={newUser.companyId ?? ""}
+                    onChange={(e) => setNewUser({ ...newUser, companyId: e.target.value || null })}
+                  >
+                    <option value="">Sem empresa</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex gap-3 pt-4">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setShowAddForm(false)}
                     className="flex-1"
+                    disabled={createUser.isPending}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    Adicionar
+                  <Button type="submit" className="flex-1" disabled={createUser.isPending}>
+                    {createUser.isPending ? "Salvando..." : "Adicionar"}
                   </Button>
                 </div>
               </form>
@@ -286,7 +277,7 @@ function AdminUsersPage() {
       )}
 
       {/* Edit User Form Modal */}
-      {editingUser && (
+      {editingUserId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 animate-fade-in-up">
           <Card className="w-full max-w-md mx-4 animate-scale-in">
             <CardHeader>
@@ -330,36 +321,36 @@ function AdminUsersPage() {
                     <option value="admin">Administrador</option>
                   </select>
                 </div>
-                {editForm.role === "user" && (
-                  <div className="space-y-2">
-                    <Label htmlFor="edit-user-company">Empresa</Label>
-                    <select
-                      id="edit-user-company"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      value={editForm.companyId}
-                      onChange={(e) => setEditForm({ ...editForm, companyId: e.target.value })}
-                      required
-                    >
-                      <option value="">Selecione uma empresa</option>
-                      {companies.map((company) => (
-                        <option key={company.id} value={company.id}>
-                          {company.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-user-company">Empresa</Label>
+                  <select
+                    id="edit-user-company"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    value={editForm.companyId ?? ""}
+                    onChange={(e) =>
+                      setEditForm({ ...editForm, companyId: e.target.value || null })
+                    }
+                  >
+                    <option value="">Sem empresa</option>
+                    {companies.map((company) => (
+                      <option key={company.id} value={company.id}>
+                        {company.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex gap-3 pt-4">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setEditingUser(null)}
+                    onClick={() => setEditingUserId(null)}
                     className="flex-1"
+                    disabled={updateUser.isPending}
                   >
                     Cancelar
                   </Button>
-                  <Button type="submit" className="flex-1">
-                    Salvar
+                  <Button type="submit" className="flex-1" disabled={updateUser.isPending}>
+                    {updateUser.isPending ? "Salvando..." : "Salvar"}
                   </Button>
                 </div>
               </form>
@@ -517,9 +508,7 @@ function AdminUsersPage() {
                       <p className="font-medium text-foreground">{user.name}</p>
                       <p className="text-sm text-muted-foreground">{user.email}</p>
                       {user.companyId && (
-                        <p className="text-xs text-primary/70 mt-0.5">
-                          {getCompanyById(user.companyId)?.name}
-                        </p>
+                        <p className="text-xs text-primary/80">{getCompanyName(user.companyId)}</p>
                       )}
                     </div>
                   </div>
@@ -527,13 +516,8 @@ function AdminUsersPage() {
                     <Badge variant={user.role === "admin" ? "default" : "secondary"}>
                       {user.role === "admin" ? "Admin" : "Usuario"}
                     </Badge>
-                    {user.companyId && (
-                      <Badge variant="outline" className="hidden md:flex">
-                        {getCompanyById(user.companyId)?.name.split(" ")[0]}
-                      </Badge>
-                    )}
                     <span className="text-xs text-muted-foreground hidden lg:block">
-                      Criado em {user.createdAt}
+                      Criado em {new Date(user.createdAt).toLocaleDateString("pt-BR")}
                     </span>
                     <Button
                       variant="ghost"
@@ -561,6 +545,7 @@ function AdminUsersPage() {
                       size="icon"
                       className="text-muted-foreground hover:text-red-600 hover:bg-red-50"
                       onClick={() => handleDeleteUser(user.id)}
+                      disabled={deleteUser.isPending}
                     >
                       <svg
                         xmlns="http://www.w3.org/2000/svg"

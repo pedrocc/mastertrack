@@ -16,7 +16,7 @@ const noopMiddleware = async (_c: Context, next: Next) => next();
 export const generalRateLimiter = isProduction
   ? rateLimiter({
       windowMs: 60 * 1000, // 1 minuto
-      limit: 100,
+      limit: 500, // Aumentado para 500 requests por minuto
       standardHeaders: "draft-6",
       keyGenerator: (c) =>
         c.req.header("x-forwarded-for") ?? c.req.header("x-real-ip") ?? "unknown",

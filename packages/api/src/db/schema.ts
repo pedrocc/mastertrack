@@ -8,6 +8,7 @@ export const users = pgTable("users", {
   email: varchar("email", { length: 255 }).notNull().unique(),
   name: varchar("name", { length: 100 }).notNull(),
   role: varchar("role", { length: 20 }).notNull().default("user"),
+  companyId: uuid("company_id"),
   avatarUrl: text("avatar_url"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true })
@@ -19,6 +20,27 @@ export const users = pgTable("users", {
 // Types inferidos do schema
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
+
+/**
+ * Tabela de empresas
+ */
+export const companies = pgTable("companies", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 255 }).notNull(),
+  cnpj: varchar("cnpj", { length: 20 }).notNull().unique(),
+  email: varchar("email", { length: 255 }).notNull(),
+  phone: varchar("phone", { length: 30 }),
+  address: text("address"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// Types inferidos do schema
+export type Company = typeof companies.$inferSelect;
+export type NewCompany = typeof companies.$inferInsert;
 
 /**
  * Tipos de requisicao disponiveis
@@ -163,3 +185,46 @@ export const requestComments = pgTable("request_comments", {
 // Types inferidos do schema
 export type RequestComment = typeof requestComments.$inferSelect;
 export type NewRequestComment = typeof requestComments.$inferInsert;
+
+/**
+ * Status de container
+ */
+export const containerStatuses = ["a_embarcar", "embarcado", "em_transito", "entregue"] as const;
+export type ContainerStatus = (typeof containerStatuses)[number];
+
+/**
+ * Status de pagamento
+ */
+export const paymentStatuses = ["ok", "pendente"] as const;
+export type PaymentStatus = (typeof paymentStatuses)[number];
+
+/**
+ * Tabela de containers
+ */
+export const containers = pgTable("containers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  companyId: uuid("company_id")
+    .notNull()
+    .references(() => companies.id, { onDelete: "cascade" }),
+  number: varchar("number", { length: 20 }).notNull(),
+  isFrozen: boolean("is_frozen").notNull().default(false),
+  status: varchar("status", { length: 30 }).notNull().default("a_embarcar"),
+  paymentStatus: varchar("payment_status", { length: 20 }).notNull().default("pendente"),
+  origin: varchar("origin", { length: 255 }).notNull(),
+  destination: varchar("destination", { length: 255 }).notNull(),
+  departureDate: varchar("departure_date", { length: 20 }).notNull(),
+  arrivalForecast: varchar("arrival_forecast", { length: 20 }).notNull(),
+  progress: integer("progress").notNull().default(0),
+  route: text("route").notNull().default("[]"), // JSON stringified array of route points
+  cargo: varchar("cargo", { length: 255 }).notNull(),
+  weight: varchar("weight", { length: 50 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+});
+
+// Types inferidos do schema
+export type Container = typeof containers.$inferSelect;
+export type NewContainer = typeof containers.$inferInsert;

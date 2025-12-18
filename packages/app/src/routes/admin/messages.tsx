@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../../components/ui/card";
-import { Dialog, DialogContent } from "../../components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "../../components/ui/dialog";
 import { Input } from "../../components/ui/input";
 import { useAuth } from "../../contexts/auth-context";
 import {
@@ -261,7 +261,9 @@ function AdminMessagesPage() {
               {/* Modal Header */}
               <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-primary to-red-700 text-white rounded-t-lg">
                 <div>
-                  <h2 className="font-semibold text-lg">{selectedConversation.companyName}</h2>
+                  <DialogTitle className="font-semibold text-lg text-white">
+                    {selectedConversation.companyName}
+                  </DialogTitle>
                   <p className="text-sm text-white/80">{selectedConversation.userName}</p>
                 </div>
                 <div className="flex items-center gap-2">

@@ -6,6 +6,8 @@ import { secureHeaders } from "hono/secure-headers";
 import { errorHandler } from "./middleware/error";
 import { generalRateLimiter } from "./middleware/rate-limit";
 import { chatRoutes } from "./routes/chat";
+import { companiesRoutes } from "./routes/companies";
+import { containersRoutes } from "./routes/containers";
 import { healthRoutes } from "./routes/health";
 import { requestCommentsRoutes } from "./routes/request-comments";
 import { requestsRoutes } from "./routes/requests";
@@ -20,11 +22,7 @@ const allowedOrigins = isProduction
   : ["http://localhost:5173", "http://localhost:3000"];
 
 const app = new Hono()
-  // Middlewares globais
-  .use("*", logger())
-  .use("*", secureHeaders())
-  .use("*", prettyJSON())
-  .use("*", generalRateLimiter)
+  // Middlewares globais - CORS deve vir primeiro para funcionar mesmo em erros
   .use(
     "*",
     cors({
@@ -37,6 +35,10 @@ const app = new Hono()
         if (allowedOrigins.includes(origin ?? "")) {
           return origin;
         }
+        // Fallback: aceita a origem do Railway app
+        if (origin?.includes("railway.app")) {
+          return origin;
+        }
         return null;
       },
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -44,21 +46,28 @@ const app = new Hono()
       credentials: true,
     })
   )
+  .use("*", logger())
+  .use("*", secureHeaders())
+  .use("*", prettyJSON())
+  .use("*", generalRateLimiter)
   // Error handler
   .onError(errorHandler)
   // Routes
   .route("/health", healthRoutes)
   .route("/api/users", usersRoutes)
+  .route("/api/companies", companiesRoutes)
   .route("/api/sla-configs", slaConfigsRoutes)
   .route("/api/chat", chatRoutes)
   .route("/api/requests", requestsRoutes)
-  .route("/api/requests", requestCommentsRoutes);
+  .route("/api/requests", requestCommentsRoutes)
+  .route("/api/containers", containersRoutes);
 
 // Export type for RPC client
 export type AppType = typeof app;
 
 // Export public types for frontend consumption
 export type { InsertUser, UpdateUser, SelectUser } from "./db/schemas";
+export type { InsertCompany, UpdateCompany, SelectCompany } from "./db/schemas";
 export type { InsertSlaConfig, UpdateSlaConfig, SelectSlaConfig } from "./db/schemas";
 export type {
   InsertConversation,
@@ -85,7 +94,13 @@ export type {
   CreateRequestComment,
   SelectRequestComment,
 } from "./db/schemas";
-export type { RequestComment } from "./db/schema";
+export type { RequestComment, Container, ContainerStatus, PaymentStatus } from "./db/schema";
+export type {
+  CreateContainer,
+  UpdateContainer,
+  SelectContainer,
+  RoutePoint,
+} from "./db/schemas";
 
 // Start server
 const port = Number(Bun.env["PORT"]) || 3000;

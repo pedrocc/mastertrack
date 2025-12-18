@@ -1,0 +1,35 @@
+FROM oven/bun:1 AS base
+WORKDIR /app
+
+# Install dependencies
+FROM base AS deps
+COPY package.json bun.lock ./
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/api/package.json ./packages/api/
+RUN bun install
+
+# Build
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
+COPY . .
+RUN cd packages/api && bun run build
+
+# Production
+FROM base AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+
+# Copy built files
+COPY --from=builder /app/packages/api/dist ./dist
+COPY --from=builder /app/packages/api/package.json ./package.json
+COPY --from=deps /app/node_modules ./node_modules
+
+# Copy drizzle config and schema for migrations
+COPY --from=builder /app/packages/api/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/packages/api/src/db ./src/db
+COPY --from=builder /app/packages/shared ./packages/shared
+
+EXPOSE 3000
+CMD ["sh", "-c", "echo 'Running migrations...' && bun run dist/migrate.js && echo 'Starting server...' && bun run dist/index.js"]

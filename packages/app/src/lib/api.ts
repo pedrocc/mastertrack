@@ -1,34 +1,25 @@
 import type { AppType } from "@mastertrack/api";
 import { hc } from "hono/client";
+import { supabase } from "./supabase";
 
 const baseUrl = import.meta.env["VITE_API_URL"] || "";
 
-const AUTH_STORAGE_KEY = "mastertrack_auth";
-
 /**
- * Get mock token from stored user
- * In development, we use the user ID as a mock token
+ * Get Supabase access token
  */
-function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (stored) {
-      const user = JSON.parse(stored);
-      // Use user ID as mock token in development
-      return user.id || null;
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return null;
+async function getAuthToken(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.access_token || null;
 }
 
 /**
  * Cliente Hono RPC type-safe
  */
 export const api = hc<AppType>(baseUrl, {
-  headers: () => {
-    const token = getAuthToken();
+  headers: async () => {
+    const token = await getAuthToken();
     if (token) {
       return {
         Authorization: `Bearer ${token}`,

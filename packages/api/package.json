@@ -10,8 +10,9 @@
   },
   "scripts": {
     "dev": "bun --env-file=../../.env run --hot src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build": "bun build src/index.ts --outdir dist --target bun && bun build src/migrate.ts --outdir dist --target bun --outfile dist/migrate.js",
     "start": "bun run dist/index.js",
+    "migrate": "bun run src/migrate.ts",
     "db:push": "bun --env-file=../../.env x drizzle-kit push --force",
     "db:generate": "bun --env-file=../../.env x drizzle-kit generate",
     "db:migrate": "bun --env-file=../../.env x drizzle-kit migrate",

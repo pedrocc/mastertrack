@@ -14,7 +14,7 @@ import {
   SheetTitle,
 } from "../components/ui/sheet";
 import { useAuth } from "../contexts/auth-context";
-import { type CompanyContainer, useCompanies } from "../contexts/companies-context";
+import { type Container, useCompanyContainers } from "../hooks/use-containers";
 
 export const Route = createFileRoute("/")({
   component: DashboardPage,
@@ -22,14 +22,13 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
-  const { getCompanyContainers } = useCompanies();
+  const { data: userContainers = [], isLoading: containersLoading } = useCompanyContainers(
+    user?.companyId
+  );
   const navigate = useNavigate();
-  const [selectedContainer, setSelectedContainer] = useState<CompanyContainer | null>(null);
+  const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
-
-  // Get containers for user's company
-  const userContainers = user?.companyId ? getCompanyContainers(user.companyId) : [];
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -40,6 +39,30 @@ function DashboardPage() {
 
   if (isLoading || !isAuthenticated) {
     return null;
+  }
+
+  // Show loading state while containers are being fetched
+  if (containersLoading && !isAdmin) {
+    return (
+      <div className="animate-fade-in-up">
+        <div className="mb-8">
+          <div className="h-6 w-32 bg-muted rounded animate-pulse mb-2" />
+          <div className="h-10 w-64 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+          {[1, 2, 3].map((i) => (
+            <Card key={i} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-12 w-24 bg-muted rounded animate-pulse" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    );
   }
 
   // Filter containers
@@ -71,7 +94,7 @@ function DashboardPage() {
     aEntregar: filteredContainers.filter((c) => c.status !== "entregue").length,
   };
 
-  const getStatusLabel = (status: CompanyContainer["status"]) => {
+  const getStatusLabel = (status: Container["status"]) => {
     const labels = {
       a_embarcar: "A Embarcar",
       embarcado: "Embarcado",
@@ -81,7 +104,7 @@ function DashboardPage() {
     return labels[status];
   };
 
-  const getStatusColor = (status: CompanyContainer["status"]) => {
+  const getStatusColor = (status: Container["status"]) => {
     const colors = {
       a_embarcar: "bg-amber-100 text-amber-800 border-amber-200",
       embarcado: "bg-blue-100 text-blue-800 border-blue-200",
