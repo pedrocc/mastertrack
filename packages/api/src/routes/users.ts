@@ -5,7 +5,7 @@ import { Hono } from "hono";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { insertUserSchema, updateUserSchema, userIdSchema } from "../db/schemas";
-import { getSupabaseAdmin, isSupabaseConfigured } from "../lib/supabase";
+import { getSupabaseAdmin, isSupabaseAdminConfigured } from "../lib/supabase";
 import { authMiddleware, requireRole } from "../middleware/auth";
 import { writeRateLimiter } from "../middleware/rate-limit";
 
@@ -143,28 +143,45 @@ export const usersRoutes = new Hono()
       const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
 
       // Sincronizar name e role com Supabase Auth user_metadata
-      if (isSupabaseConfigured() && (data.name || data.role)) {
-        try {
-          const supabaseAdmin = getSupabaseAdmin();
+      if (data.name || data.role) {
+        if (!isSupabaseAdminConfigured()) {
+          console.warn(
+            "[Users] Supabase Admin nao configurado (SUPABASE_SERVICE_ROLE_KEY ausente). " +
+              "user_metadata nao sera sincronizado."
+          );
+        } else {
+          try {
+            const supabaseAdmin = getSupabaseAdmin();
 
-          // Buscar metadados atuais do usuario para fazer merge
-          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(id);
+            // Buscar metadados atuais do usuario para fazer merge
+            const { data: authUser, error: getUserError } =
+              await supabaseAdmin.auth.admin.getUserById(id);
 
-          if (authUser?.user) {
-            const currentMetadata = authUser.user.user_metadata ?? {};
-            const updatedMetadata = {
-              ...currentMetadata,
-              ...(data.name && { name: data.name }),
-              ...(data.role && { role: data.role }),
-            };
+            if (getUserError) {
+              console.error("[Users] Erro ao buscar usuario no Supabase Auth:", getUserError);
+            } else if (authUser?.user) {
+              const currentMetadata = authUser.user.user_metadata ?? {};
+              const updatedMetadata = {
+                ...currentMetadata,
+                ...(data.name && { name: data.name }),
+                ...(data.role && { role: data.role }),
+              };
 
-            await supabaseAdmin.auth.admin.updateUserById(id, {
-              user_metadata: updatedMetadata,
-            });
+              const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(id, {
+                user_metadata: updatedMetadata,
+              });
+
+              if (updateError) {
+                console.error("[Users] Erro ao atualizar user_metadata no Supabase:", updateError);
+              } else {
+                console.log(`[Users] user_metadata sincronizado para usuario ${id}`);
+              }
+            } else {
+              console.warn(`[Users] Usuario ${id} nao encontrado no Supabase Auth`);
+            }
+          } catch (err) {
+            console.error("[Users] Excecao ao sincronizar user_metadata com Supabase:", err);
           }
-        } catch (err) {
-          console.error("[Users] Falha ao sincronizar user_metadata com Supabase:", err);
-          // Nao falhar a operacao, o banco ja foi atualizado
         }
       }
 

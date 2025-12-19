@@ -8,10 +8,18 @@ let _supabaseAdmin: SupabaseClient | null = null;
 let _supabase: SupabaseClient | null = null;
 
 /**
- * Verifica se Supabase esta configurado
+ * Verifica se Supabase esta configurado (anon key)
  */
 export function isSupabaseConfigured(): boolean {
   return Boolean(supabaseUrl && (supabaseServiceKey || supabaseAnonKey));
+}
+
+/**
+ * Verifica se Supabase Admin esta configurado (service role key)
+ * Necessario para operacoes administrativas como atualizar user_metadata
+ */
+export function isSupabaseAdminConfigured(): boolean {
+  return Boolean(supabaseUrl && supabaseServiceKey);
 }
 
 /**

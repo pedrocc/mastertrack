@@ -1,108 +1,107 @@
 import {
   createContext,
-  useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
-interface PageLoadingContextType {
-  /**
-   * Indica se alguma página está carregando dados
-   */
-  isPageLoading: boolean;
-  /**
-   * Registra um loading state. Retorna uma função para desregistrar.
-   * Uso: chamar no início do componente e chamar o retorno no cleanup.
-   */
-  registerLoading: (id: string) => () => void;
-  /**
-   * Atualiza o estado de loading de um ID específico
-   */
-  setLoading: (id: string, loading: boolean) => void;
-}
+/**
+ * Store simples para gerenciar o estado de loading das páginas
+ * Usa o padrão de external store para evitar loops de re-render
+ */
+function createPageLoadingStore() {
+  const loadingStates = new Map<string, boolean>();
+  const listeners = new Set<() => void>();
 
-const PageLoadingContext = createContext<PageLoadingContextType>({
-  isPageLoading: false,
-  registerLoading: () => () => {},
-  setLoading: () => {},
-});
-
-export function PageLoadingProvider({ children }: { children: ReactNode }) {
-  // Map de IDs para seus estados de loading
-  const [loadingStates, setLoadingStates] = useState<Map<string, boolean>>(new Map());
-
-  const registerLoading = useCallback((id: string) => {
-    setLoadingStates((prev) => {
-      const next = new Map(prev);
-      next.set(id, true);
-      return next;
-    });
-
-    // Retorna função de cleanup
-    return () => {
-      setLoadingStates((prev) => {
-        const next = new Map(prev);
-        next.delete(id);
-        return next;
-      });
-    };
-  }, []);
-
-  const setLoading = useCallback((id: string, loading: boolean) => {
-    setLoadingStates((prev) => {
-      const current = prev.get(id);
-      if (current === loading) return prev;
-      const next = new Map(prev);
-      next.set(id, loading);
-      return next;
-    });
-  }, []);
-
-  // Calcula se alguma página está carregando
-  const isPageLoading = useMemo(() => {
+  function getSnapshot(): boolean {
     for (const loading of loadingStates.values()) {
       if (loading) return true;
     }
     return false;
-  }, [loadingStates]);
+  }
 
-  const value = useMemo(
-    () => ({ isPageLoading, registerLoading, setLoading }),
-    [isPageLoading, registerLoading, setLoading]
+  function subscribe(listener: () => void): () => void {
+    listeners.add(listener);
+    return () => listeners.delete(listener);
+  }
+
+  function notify() {
+    for (const listener of listeners) {
+      listener();
+    }
+  }
+
+  function setLoading(id: string, loading: boolean) {
+    const current = loadingStates.get(id);
+    if (current === loading) return;
+
+    loadingStates.set(id, loading);
+    notify();
+  }
+
+  function unregister(id: string) {
+    if (loadingStates.has(id)) {
+      loadingStates.delete(id);
+      notify();
+    }
+  }
+
+  return { getSnapshot, subscribe, setLoading, unregister };
+}
+
+type PageLoadingStore = ReturnType<typeof createPageLoadingStore>;
+
+const PageLoadingContext = createContext<PageLoadingStore | null>(null);
+
+export function PageLoadingProvider({ children }: { children: ReactNode }) {
+  // Cria o store uma única vez
+  const storeRef = useRef<PageLoadingStore | null>(null);
+  if (!storeRef.current) {
+    storeRef.current = createPageLoadingStore();
+  }
+
+  return (
+    <PageLoadingContext.Provider value={storeRef.current}>{children}</PageLoadingContext.Provider>
   );
-
-  return <PageLoadingContext.Provider value={value}>{children}</PageLoadingContext.Provider>;
 }
 
 /**
  * Hook para o root layout observar o estado de loading das páginas
  */
-export function usePageLoadingState() {
-  const { isPageLoading } = useContext(PageLoadingContext);
-  return isPageLoading;
+export function usePageLoadingState(): boolean {
+  const store = useContext(PageLoadingContext);
+
+  if (!store) {
+    throw new Error("usePageLoadingState must be used within PageLoadingProvider");
+  }
+
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
 }
 
 /**
  * Hook para páginas registrarem seu estado de loading
  * @param isLoading - Se a página está carregando dados
- * @param id - ID único para esta página (opcional, usa um ID gerado automaticamente)
+ * @param id - ID único para esta página
  */
-export function usePageLoading(isLoading: boolean, id?: string) {
-  const { registerLoading, setLoading } = useContext(PageLoadingContext);
-  const idRef = useRef(id ?? `page-${Math.random().toString(36).slice(2)}`);
+export function usePageLoading(isLoading: boolean, id: string) {
+  const store = useContext(PageLoadingContext);
+  const prevLoadingRef = useRef<boolean | null>(null);
 
-  // Registra no mount, desregistra no unmount
+  // Atualiza o estado apenas quando realmente muda
   useEffect(() => {
-    const cleanup = registerLoading(idRef.current);
-    return cleanup;
-  }, [registerLoading]);
+    if (!store) return;
 
-  // Atualiza o estado quando isLoading muda
-  useEffect(() => {
-    setLoading(idRef.current, isLoading);
-  }, [isLoading, setLoading]);
+    // Só atualiza se o valor realmente mudou
+    if (prevLoadingRef.current !== isLoading) {
+      prevLoadingRef.current = isLoading;
+      store.setLoading(id, isLoading);
+    }
+
+    // Cleanup: remove o registro quando o componente desmonta
+    return () => {
+      store.unregister(id);
+    };
+  }, [store, id, isLoading]);
 }
