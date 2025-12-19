@@ -1,25 +1,32 @@
 import type { AppType } from "@mastertrack/api";
 import { hc } from "hono/client";
-import { supabase } from "./supabase";
+import { isSupabaseConfigured, supabase } from "./supabase";
 
 const baseUrl = import.meta.env["VITE_API_URL"] || "";
 
+// Cache the access token to avoid calling getSession() for every API call
+let cachedToken: string | null = null;
+
+// Subscribe to auth changes and cache the token
+if (isSupabaseConfigured()) {
+  supabase.auth.onAuthStateChange((_event, session) => {
+    cachedToken = session?.access_token || null;
+  });
+}
+
 /**
- * Get Supabase access token
+ * Get cached Supabase access token
  */
-async function getAuthToken(): Promise<string | null> {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  return session?.access_token || null;
+function getAuthToken(): string | null {
+  return cachedToken;
 }
 
 /**
  * Cliente Hono RPC type-safe
  */
 export const api = hc<AppType>(baseUrl, {
-  headers: async () => {
-    const token = await getAuthToken();
+  headers: () => {
+    const token = getAuthToken();
     if (token) {
       return {
         Authorization: `Bearer ${token}`,

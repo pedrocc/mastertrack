@@ -27,17 +27,17 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <SLASettingsProvider>
-        <SupportChatProvider>
-          <CompaniesProvider>
-            <RequestsProvider>
-              <NotificationsProvider>
-                <AuthProvider>{children}</AuthProvider>
-              </NotificationsProvider>
-            </RequestsProvider>
-          </CompaniesProvider>
-        </SupportChatProvider>
-      </SLASettingsProvider>
+      <AuthProvider>
+        <SLASettingsProvider>
+          <SupportChatProvider>
+            <CompaniesProvider>
+              <RequestsProvider>
+                <NotificationsProvider>{children}</NotificationsProvider>
+              </RequestsProvider>
+            </CompaniesProvider>
+          </SupportChatProvider>
+        </SLASettingsProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }

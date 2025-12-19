@@ -73,12 +73,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserWithCompany | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  // isLoading stays TRUE until we have complete user data (including DB fetch)
   const [isLoading, setIsLoading] = useState(true);
-  // Track if the browser has painted the loading screen at least once
-  const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
-  // Internal flag for when data is ready (but we still wait for paint)
-  const [dataReady, setDataReady] = useState(false);
 
   // Fetch user data from database API by email
   const fetchUserFromDb = useCallback(async (email: string): Promise<UserWithCompany | null> => {
@@ -117,98 +112,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [session, fetchUserFromDb]);
 
-  // Ensure browser paints loading screen before showing content
-  // This effect waits for at least 2 animation frames to guarantee paint
-  useEffect(() => {
-    let frameId: number;
-    let mounted = true;
-
-    // Wait for 2 animation frames to ensure browser has painted loading screen
-    const waitForPaint = () => {
-      frameId = requestAnimationFrame(() => {
-        frameId = requestAnimationFrame(() => {
-          if (mounted) {
-            setHasRenderedOnce(true);
-          }
-        });
-      });
-    };
-
-    waitForPaint();
-
-    return () => {
-      mounted = false;
-      cancelAnimationFrame(frameId);
-    };
-  }, []);
-
-  // Only set isLoading to false when BOTH conditions are met:
-  // 1. Data is ready (auth check + DB fetch complete)
-  // 2. Browser has painted loading screen at least once
-  useEffect(() => {
-    if (dataReady && hasRenderedOnce) {
-      setIsLoading(false);
-    }
-  }, [dataReady, hasRenderedOnce]);
-
   // Initialize auth state from Supabase
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setDataReady(true);
+      setIsLoading(false);
       return;
     }
 
     let isMounted = true;
 
-    // Listen for auth changes
+    // Timeout fallback - if everything takes more than 5 seconds, show the page
+    const timeoutId = setTimeout(() => {
+      if (isMounted) {
+        setIsLoading(false);
+      }
+    }, 5000);
+
+    // Listen for auth changes - this fires immediately with INITIAL_SESSION
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return;
 
-      console.log("[Auth] onAuthStateChange:", event, "session:", !!newSession);
-
       setSession(newSession);
 
       if (newSession?.user) {
-        // Set Supabase data as immediate fallback (but keep loading = true)
+        // Set basic user info from Supabase first
         setUser(supabaseUserToAppUser(newSession.user));
 
-        // Fetch from DB and ONLY mark data as ready after completion
+        // Fetch full user data from DB before stopping loading
         if (newSession.user.email) {
-          try {
-            const dbUser = await fetchUserFromDb(newSession.user.email);
-            if (isMounted) {
-              if (dbUser) {
-                setUser(dbUser);
-              }
-              setDataReady(true);
-              console.log("[Auth] DB fetch complete, data ready");
-            }
-          } catch (error) {
-            console.error("[Auth] DB fetch failed:", error);
-            if (isMounted) {
-              setDataReady(true); // Still mark data ready on error
-            }
+          const dbUser = await fetchUserFromDb(newSession.user.email);
+          if (isMounted && dbUser) {
+            setUser(dbUser);
           }
-        } else {
-          setDataReady(true);
+        }
+
+        // Only stop loading after DB fetch completes
+        if (isMounted) {
+          setIsLoading(false);
         }
       } else {
-        // Not authenticated
+        // No session - stop loading and show login
         setUser(null);
-        setDataReady(true);
-        console.log("[Auth] No session, data ready");
+        setIsLoading(false);
       }
     });
-
-    // Fallback timeout
-    const timeoutId = setTimeout(() => {
-      if (isMounted) {
-        console.log("[Auth] Timeout reached, forcing data ready");
-        setDataReady(true);
-      }
-    }, 5000);
 
     return () => {
       isMounted = false;
@@ -237,20 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error("Supabase nao configurado");
       }
 
-      // Reset state for new login - keep loading true
       setIsLoading(true);
-      setDataReady(false);
-      setHasRenderedOnce(false);
-
-      // Wait for 2 frames to show loading screen
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setHasRenderedOnce(true);
-            resolve();
-          });
-        });
-      });
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -258,7 +194,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (error) {
-        setDataReady(true);
+        setIsLoading(false);
         throw new Error(error.message);
       }
 
@@ -273,13 +209,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
             if (dbUser) {
               setUser(dbUser);
             }
-          } catch (error) {
-            console.error("[Auth] Login DB fetch failed:", error);
+          } catch (err) {
+            console.error("[Auth] Login DB fetch failed:", err);
           }
         }
 
-        // Mark data as ready - isLoading will become false via the effect
-        setDataReady(true);
+        setIsLoading(false);
       }
     },
     [fetchUserFromDb]
@@ -288,14 +223,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async () => {
     setUser(null);
     setSession(null);
-    setDataReady(true); // Mark as ready (no user state)
-    // isLoading will be set to false by the effect
 
     if (isSupabaseConfigured()) {
       try {
         await supabase.auth.signOut({ scope: "local" });
-      } catch (error) {
-        console.error("[Auth] signOut failed:", error);
+      } catch (err) {
+        console.error("[Auth] signOut failed:", err);
       }
     }
   }, []);

@@ -3,6 +3,7 @@ import type { JsonSerialized } from "@mastertrack/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useMemo } from "react";
 import { api, handleResponse } from "../lib/api";
+import { useAuth } from "./auth-context";
 
 type RequestJson = JsonSerialized<Request>;
 
@@ -259,6 +260,7 @@ const parseRequestData = (request: RequestJson): RequestWithData => {
 
 export function RequestsProvider({ children }: RequestsProviderProps) {
   const queryClient = useQueryClient();
+  const { isAuthenticated } = useAuth();
 
   // Fetch all requests
   const { data: rawRequests = [], isLoading } = useQuery({
@@ -270,6 +272,7 @@ export function RequestsProvider({ children }: RequestsProviderProps) {
     },
     staleTime: 0,
     refetchInterval: 10000, // Poll every 10 seconds
+    enabled: isAuthenticated, // Only fetch when user is authenticated
   });
 
   // Parse requests data
