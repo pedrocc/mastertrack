@@ -8,7 +8,7 @@ const baseUrl = import.meta.env["VITE_API_URL"] || "";
 let cachedToken: string | null = null;
 
 // Subscribe to auth changes and cache the token
-if (isSupabaseConfigured()) {
+if (isSupabaseConfigured() && supabase) {
   supabase.auth.onAuthStateChange((_event, session) => {
     cachedToken = session?.access_token || null;
   });

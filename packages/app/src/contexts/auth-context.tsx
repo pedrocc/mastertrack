@@ -129,6 +129,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }, 5000);
 
     // Listen for auth changes - this fires immediately with INITIAL_SESSION
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
@@ -188,6 +192,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setIsLoading(true);
 
+      if (!supabase) {
+        throw new Error("Supabase nao configurado");
+      }
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -224,7 +231,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setUser(null);
     setSession(null);
 
-    if (isSupabaseConfigured()) {
+    if (isSupabaseConfigured() && supabase) {
       try {
         await supabase.auth.signOut({ scope: "local" });
       } catch (err) {

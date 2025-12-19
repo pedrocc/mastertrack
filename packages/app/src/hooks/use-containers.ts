@@ -55,6 +55,7 @@ interface ContainersResponse {
 
 // Get auth token
 async function getAuthToken(): Promise<string | null> {
+  if (!supabase) return null;
   const {
     data: { session },
   } = await supabase.auth.getSession();
