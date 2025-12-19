@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const { isAuthenticated, isLoading, user, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, isAdmin } = useAuth();
   const { data: userContainers = [], isLoading: containersLoading } = useCompanyContainers(
     user?.companyId
   );
@@ -30,34 +30,29 @@ function DashboardPage() {
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Redirect to login if not authenticated
+  // Calculate if all data is ready BEFORE any render decision
+  // For customers: need auth + companyId (from DB) + containers
+  // For admins: only need auth
+  const isCustomerDataReady =
+    !authLoading && isAuthenticated && !!user?.companyId && !containersLoading;
+  const isAdminDataReady = !authLoading && isAuthenticated && isAdmin;
+  const isDataReady = isAdminDataReady || isCustomerDataReady;
+
+  // Redirect to login if not authenticated (after auth loading completes)
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (!authLoading && !isAuthenticated) {
       navigate({ to: "/login" });
     }
-  }, [isLoading, isAuthenticated, navigate]);
+  }, [authLoading, isAuthenticated, navigate]);
 
-  // Show skeleton during auth loading
-  if (isLoading) {
+  // ALWAYS show skeleton first if data is not ready
+  // This ensures skeleton appears before any content
+  if (!isDataReady) {
+    // If auth is done and user is not authenticated, show nothing (will redirect)
+    if (!authLoading && !isAuthenticated) {
+      return null;
+    }
     return <DashboardSkeleton />;
-  }
-
-  if (!isAuthenticated) {
-    return null;
-  }
-
-  // For customers: show skeleton until we have companyId (from DB) and containers are loaded
-  // The auth context first loads Supabase data (no companyId), then fetches from DB (with companyId)
-  // We need to wait for the DB fetch to complete before showing the dashboard
-  if (!isAdmin) {
-    // Still waiting for user data from database (companyId comes from DB, not Supabase)
-    if (!user?.companyId) {
-      return <DashboardSkeleton />;
-    }
-    // Still loading containers
-    if (containersLoading) {
-      return <DashboardSkeleton />;
-    }
   }
 
   // Filter containers
