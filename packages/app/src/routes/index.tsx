@@ -46,9 +46,18 @@ function DashboardPage() {
     return null;
   }
 
-  // Show loading state while containers are being fetched (customer only)
-  if (containersLoading && !isAdmin) {
-    return <DashboardSkeleton />;
+  // For customers: show skeleton until we have companyId (from DB) and containers are loaded
+  // The auth context first loads Supabase data (no companyId), then fetches from DB (with companyId)
+  // We need to wait for the DB fetch to complete before showing the dashboard
+  if (!isAdmin) {
+    // Still waiting for user data from database (companyId comes from DB, not Supabase)
+    if (!user?.companyId) {
+      return <DashboardSkeleton />;
+    }
+    // Still loading containers
+    if (containersLoading) {
+      return <DashboardSkeleton />;
+    }
   }
 
   // Filter containers
