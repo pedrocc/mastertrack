@@ -32,16 +32,6 @@ function DashboardPage() {
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Calculate if all data is ready BEFORE any render decision
-  // Auth loading now includes DB fetch, so we just need:
-  // - For customers: auth done + containers fetched
-  // - For admins: auth done
-  const needsContainers = !!user?.companyId && !isAdmin;
-  const isContainersReady = !needsContainers || (containersLoaded && !containersLoading);
-  const isCustomerDataReady = !authLoading && isAuthenticated && isContainersReady;
-  const isAdminDataReady = !authLoading && isAuthenticated && isAdmin;
-  const isDataReady = isAdminDataReady || isCustomerDataReady;
-
   // Redirect to login if not authenticated (after auth loading completes)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -49,15 +39,34 @@ function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // ALWAYS show skeleton first if data is not ready
-  // This ensures skeleton appears before any content
-  if (!isDataReady) {
-    // If auth is done and user is not authenticated, show nothing (will redirect)
-    if (!authLoading && !isAuthenticated) {
-      return null;
-    }
+  // EXPLICIT EARLY RETURNS - simple sequential checks
+
+  // 1. If auth is loading, show skeleton
+  if (authLoading) {
     return <DashboardSkeleton />;
   }
+
+  // 2. If not authenticated, return null (will redirect)
+  if (!isAuthenticated) {
+    return null;
+  }
+
+  // 3. At this point we have a user. Check if admin.
+  if (isAdmin) {
+    // Admin is ready - show admin dashboard
+    return <AdminDashboard user={user} />;
+  }
+
+  // 4. Customer flow - need to wait for containers if they have a company
+  const hasCompanyId = !!user?.companyId;
+  const containersAreReady = containersLoaded && !containersLoading;
+
+  // If customer has a company, wait for containers to load
+  if (hasCompanyId && !containersAreReady) {
+    return <DashboardSkeleton />;
+  }
+
+  // 5. Customer without company OR containers are ready - show dashboard
 
   // Filter containers
   const filteredContainers = userContainers.filter((container) => {
