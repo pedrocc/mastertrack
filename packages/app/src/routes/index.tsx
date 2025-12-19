@@ -37,32 +37,18 @@ function DashboardPage() {
     }
   }, [isLoading, isAuthenticated, navigate]);
 
-  if (isLoading || !isAuthenticated) {
+  // Show skeleton during auth loading
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
+
+  if (!isAuthenticated) {
     return null;
   }
 
-  // Show loading state while containers are being fetched
+  // Show loading state while containers are being fetched (customer only)
   if (containersLoading && !isAdmin) {
-    return (
-      <div className="animate-fade-in-up">
-        <div className="mb-8">
-          <div className="h-6 w-32 bg-muted rounded animate-pulse mb-2" />
-          <div className="h-10 w-64 bg-muted rounded animate-pulse" />
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-          {[1, 2, 3].map((i) => (
-            <Card key={i} className="overflow-hidden">
-              <CardHeader className="pb-2">
-                <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-12 w-24 bg-muted rounded animate-pulse" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   // Filter containers
@@ -777,6 +763,103 @@ function DashboardPage() {
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+// Loading Skeleton Component
+function DashboardSkeleton() {
+  return (
+    <div className="animate-fade-in-up">
+      {/* Header Skeleton */}
+      <div className="mb-8">
+        <div className="flex items-center gap-3 mb-2">
+          <div className="h-1 w-8 bg-muted rounded-full" />
+          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
+        </div>
+        <div className="h-9 w-48 bg-muted rounded animate-pulse mb-2" />
+        <div className="h-5 w-72 bg-muted rounded animate-pulse" />
+        <div className="flex items-center gap-2 mt-3">
+          <div className="h-4 w-4 bg-muted rounded animate-pulse" />
+          <div className="h-4 w-40 bg-muted rounded animate-pulse" />
+        </div>
+      </div>
+
+      {/* Filter Skeleton */}
+      <Card className="mb-6 border-dashed">
+        <CardContent className="pt-4 pb-4">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="h-5 w-28 bg-muted rounded animate-pulse" />
+            <div className="h-9 w-40 bg-muted rounded animate-pulse" />
+            <div className="h-9 w-40 bg-muted rounded animate-pulse" />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Stats Grid Skeleton */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
+        {[1, 2, 3].map((i) => (
+          <Card key={i} className="overflow-hidden">
+            <div className="h-1 bg-muted" />
+            <CardHeader className="pb-2">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-4 bg-muted rounded animate-pulse" />
+                <div className="h-3 w-32 bg-muted rounded animate-pulse" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="h-3 w-20 bg-muted rounded animate-pulse mb-2" />
+                  <div className="h-8 w-12 bg-muted rounded animate-pulse" />
+                </div>
+                <div className="h-12 w-px bg-border" />
+                <div className="flex-1">
+                  <div className="h-3 w-20 bg-muted rounded animate-pulse mb-2" />
+                  <div className="h-8 w-12 bg-muted rounded animate-pulse" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Container List Skeleton */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <div className="h-6 w-40 bg-muted rounded animate-pulse mb-2" />
+              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+            </div>
+            <div className="h-10 w-64 bg-muted rounded animate-pulse" />
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="p-4 rounded-xl border border-border bg-white">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                  <div className="flex items-center gap-3 lg:w-56">
+                    <div className="h-12 w-12 rounded-lg bg-muted animate-pulse" />
+                    <div>
+                      <div className="h-5 w-28 bg-muted rounded animate-pulse mb-1" />
+                      <div className="h-3 w-20 bg-muted rounded animate-pulse" />
+                    </div>
+                  </div>
+                  <div className="flex-1 hidden md:block">
+                    <div className="h-4 w-48 bg-muted rounded animate-pulse mb-2" />
+                    <div className="h-1.5 w-full bg-muted rounded animate-pulse" />
+                  </div>
+                  <div className="flex items-center gap-2 lg:w-48 justify-end">
+                    <div className="h-6 w-24 bg-muted rounded-full animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
