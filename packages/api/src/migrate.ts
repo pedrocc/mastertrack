@@ -362,7 +362,7 @@ async function migrate() {
     await sql.unsafe(migrationSql);
     console.log("Schema migrations completed");
 
-    // Sync Supabase Auth users
+    // Sync Supabase Auth users - only insert if not exists (don't overwrite existing data)
     console.log("Syncing Supabase Auth users...");
     for (const user of supabaseAuthUsers) {
       const exists = await sql`SELECT id FROM users WHERE id = ${user.id}`;
@@ -373,13 +373,8 @@ async function migrate() {
         `;
         console.log(`  Created user: ${user.email}`);
       } else {
-        // Update existing user to ensure sync
-        await sql`
-          UPDATE users
-          SET email = ${user.email}, name = ${user.name}, role = ${user.role}
-          WHERE id = ${user.id}
-        `;
-        console.log(`  Updated user: ${user.email}`);
+        // User already exists - do NOT update name/role to preserve manual changes
+        console.log(`  User already exists: ${user.email} (skipping update to preserve data)`);
       }
     }
 
