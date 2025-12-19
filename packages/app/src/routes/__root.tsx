@@ -20,7 +20,7 @@ export const Route = createRootRoute({
 });
 
 function RootLayout() {
-  const { user, isAuthenticated, logout, isAdmin, isLoading, isUserDataFromDb } = useAuth();
+  const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
   const { getUnseenStatusCount, getUnseenByAdminCount } = useRequests();
   const { getUnreadCountForAdmin } = useSupportChat();
   const navigate = useNavigate();
@@ -38,9 +38,9 @@ function RootLayout() {
   const avatarLetter =
     user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Show loading state while auth is loading OR while fetching user data from DB
-  // This prevents the layout from appearing before user data is ready
-  if (isLoading || (isAuthenticated && !isUserDataFromDb)) {
+  // Show loading state only during initial auth check
+  // Once auth is done, show layout with skeleton in dashboard for loading states
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
