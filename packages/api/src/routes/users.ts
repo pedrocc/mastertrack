@@ -145,13 +145,23 @@ export const usersRoutes = new Hono()
       // Sincronizar name e role com Supabase Auth user_metadata
       if (isSupabaseConfigured() && (data.name || data.role)) {
         try {
-          const metadata: Record<string, string> = {};
-          if (data.name) metadata["name"] = data.name;
-          if (data.role) metadata["role"] = data.role;
+          const supabaseAdmin = getSupabaseAdmin();
 
-          await getSupabaseAdmin().auth.admin.updateUserById(id, {
-            user_metadata: metadata,
-          });
+          // Buscar metadados atuais do usuario para fazer merge
+          const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(id);
+
+          if (authUser?.user) {
+            const currentMetadata = authUser.user.user_metadata ?? {};
+            const updatedMetadata = {
+              ...currentMetadata,
+              ...(data.name && { name: data.name }),
+              ...(data.role && { role: data.role }),
+            };
+
+            await supabaseAdmin.auth.admin.updateUserById(id, {
+              user_metadata: updatedMetadata,
+            });
+          }
         } catch (err) {
           console.error("[Users] Falha ao sincronizar user_metadata com Supabase:", err);
           // Nao falhar a operacao, o banco ja foi atualizado
