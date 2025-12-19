@@ -23,18 +23,17 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, user, isAdmin } = useAuth();
-  const {
-    data: userContainers = [],
-    isLoading: containersLoading,
-    isFetching: containersFetching,
-  } = useCompanyContainers(user?.companyId);
+  const { data: userContainers = [], isLoading: containersLoading } = useCompanyContainers(
+    user?.companyId
+  );
   const navigate = useNavigate();
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
   // Calculate if page is loading (only for non-admin users who need containers)
-  const isPageDataLoading = !isAdmin && (containersLoading || containersFetching);
+  // Only use isLoading (not isFetching) to avoid showing loading on background refetches
+  const isPageDataLoading = !isAdmin && containersLoading;
 
   // Register page loading state - root layout will show centralized loading
   usePageLoading(isPageDataLoading, "dashboard");
