@@ -5,6 +5,7 @@ import { Hono } from "hono";
 import { db } from "../db";
 import { users } from "../db/schema";
 import { insertUserSchema, updateUserSchema, userIdSchema } from "../db/schemas";
+import { getSupabaseAdmin, isSupabaseConfigured } from "../lib/supabase";
 import { authMiddleware, requireRole } from "../middleware/auth";
 import { writeRateLimiter } from "../middleware/rate-limit";
 
@@ -140,6 +141,22 @@ export const usersRoutes = new Hono()
       }
 
       const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+
+      // Sincronizar name e role com Supabase Auth user_metadata
+      if (isSupabaseConfigured() && (data.name || data.role)) {
+        try {
+          const metadata: Record<string, string> = {};
+          if (data.name) metadata["name"] = data.name;
+          if (data.role) metadata["role"] = data.role;
+
+          await getSupabaseAdmin().auth.admin.updateUserById(id, {
+            user_metadata: metadata,
+          });
+        } catch (err) {
+          console.error("[Users] Falha ao sincronizar user_metadata com Supabase:", err);
+          // Nao falhar a operacao, o banco ja foi atualizado
+        }
+      }
 
       return c.json({ data: user });
     }
