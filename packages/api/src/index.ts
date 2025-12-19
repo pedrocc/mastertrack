@@ -5,6 +5,7 @@ import { prettyJSON } from "hono/pretty-json";
 import { secureHeaders } from "hono/secure-headers";
 import { errorHandler } from "./middleware/error";
 import { generalRateLimiter } from "./middleware/rate-limit";
+import { authRoutes } from "./routes/auth";
 import { chatRoutes } from "./routes/chat";
 import { companiesRoutes } from "./routes/companies";
 import { containersRoutes } from "./routes/containers";
@@ -54,6 +55,7 @@ const app = new Hono()
   .onError(errorHandler)
   // Routes
   .route("/health", healthRoutes)
+  .route("/api/auth", authRoutes)
   .route("/api/users", usersRoutes)
   .route("/api/companies", companiesRoutes)
   .route("/api/sla-configs", slaConfigsRoutes)

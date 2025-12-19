@@ -3,6 +3,10 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env["VITE_SUPABASE_URL"] || "";
 const supabaseAnonKey = import.meta.env["VITE_SUPABASE_ANON_KEY"] || "";
 
+// Debug: log env values
+console.log("[Supabase] URL:", supabaseUrl ? "set" : "empty");
+console.log("[Supabase] Key:", supabaseAnonKey ? `set (${supabaseAnonKey.length} chars)` : "empty");
+
 /**
  * Verifica se Supabase esta configurado
  */

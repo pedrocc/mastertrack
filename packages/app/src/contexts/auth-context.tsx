@@ -1,8 +1,17 @@
 import type { UserRole, UserWithCompany } from "@mastertrack/shared";
 import type { Session, User } from "@supabase/supabase-js";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { api, handleResponse } from "../lib/api";
+import {
+  api,
+  clearLocalAuthToken,
+  getLocalAuthToken,
+  handleResponse,
+  setLocalAuthToken,
+} from "../lib/api";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
+
+// Debug: log at module level
+console.log("[Auth Module] Loaded, isSupabaseConfigured:", isSupabaseConfigured());
 
 interface AuthContextType {
   user: UserWithCompany | null;
@@ -112,13 +121,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [session, fetchUserFromDb]);
 
-  // Initialize auth state from Supabase
+  // Initialize auth state from Supabase or local token
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setIsLoading(false);
-      return;
-    }
-
     let isMounted = true;
 
     // Timeout fallback - if everything takes more than 5 seconds, show the page
@@ -127,6 +131,36 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setIsLoading(false);
       }
     }, 5000);
+
+    console.log("[Auth] Init - isSupabaseConfigured:", isSupabaseConfigured());
+
+    // Em desenvolvimento sem Supabase, verificar token local
+    if (!isSupabaseConfigured()) {
+      const localToken = getLocalAuthToken();
+      console.log("[Auth] Local auth mode - token exists:", !!localToken);
+      if (localToken) {
+        // Tentar recuperar dados do usuario do localStorage
+        const storedUser = localStorage.getItem("mastertrack_local_user");
+        console.log("[Auth] Stored user:", storedUser);
+        if (storedUser) {
+          try {
+            const parsedUser = JSON.parse(storedUser) as UserWithCompany;
+            console.log("[Auth] Parsed user:", parsedUser);
+            setUser(parsedUser);
+          } catch (err) {
+            // Token invalido, limpar
+            console.error("[Auth] Failed to parse user:", err);
+            clearLocalAuthToken();
+            localStorage.removeItem("mastertrack_local_user");
+          }
+        }
+      }
+      setIsLoading(false);
+      return () => {
+        isMounted = false;
+        clearTimeout(timeoutId);
+      };
+    }
 
     // Listen for auth changes - this fires immediately with INITIAL_SESSION
     if (!supabase) {
@@ -186,11 +220,56 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      if (!isSupabaseConfigured()) {
-        throw new Error("Supabase nao configurado");
-      }
-
       setIsLoading(true);
+
+      // Em desenvolvimento sem Supabase, usar login local
+      if (!isSupabaseConfigured()) {
+        try {
+          const res = await api.api.auth["local-login"].$post({
+            json: { email },
+          });
+
+          if (!res.ok) {
+            const errorData = (await res.json()) as { error?: { message?: string } };
+            throw new Error(errorData.error?.message || "Falha no login local");
+          }
+
+          const data = (await res.json()) as {
+            data: {
+              user: {
+                id: string;
+                email: string;
+                name: string;
+                role: string;
+                companyId: string | null;
+                avatarUrl: string | null;
+              };
+              token: string;
+            };
+          };
+
+          const localUser: UserWithCompany = {
+            id: data.data.user.id,
+            email: data.data.user.email,
+            name: data.data.user.name,
+            role: data.data.user.role as UserRole,
+          };
+
+          if (data.data.user.companyId) {
+            localUser.companyId = data.data.user.companyId;
+          }
+
+          // Salvar token e usuario
+          setLocalAuthToken(data.data.token);
+          localStorage.setItem("mastertrack_local_user", JSON.stringify(localUser));
+          setUser(localUser);
+          setIsLoading(false);
+          return;
+        } catch (err) {
+          setIsLoading(false);
+          throw err;
+        }
+      }
 
       if (!supabase) {
         throw new Error("Supabase nao configurado");
@@ -230,6 +309,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async () => {
     setUser(null);
     setSession(null);
+
+    // Limpar auth local
+    clearLocalAuthToken();
+    localStorage.removeItem("mastertrack_local_user");
 
     if (isSupabaseConfigured() && supabase) {
       try {

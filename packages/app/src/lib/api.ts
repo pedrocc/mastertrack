@@ -4,6 +4,9 @@ import { isSupabaseConfigured, supabase } from "./supabase";
 
 const baseUrl = import.meta.env["VITE_API_URL"] || "";
 
+// Local storage key for local auth token (development only)
+const LOCAL_AUTH_TOKEN_KEY = "mastertrack_local_auth_token";
+
 // Cache the access token to avoid calling getSession() for every API call
 let cachedToken: string | null = null;
 
@@ -12,6 +15,36 @@ if (isSupabaseConfigured() && supabase) {
   supabase.auth.onAuthStateChange((_event, session) => {
     cachedToken = session?.access_token || null;
   });
+} else {
+  // Em desenvolvimento sem Supabase, usar token local do localStorage
+  cachedToken = localStorage.getItem(LOCAL_AUTH_TOKEN_KEY);
+}
+
+/**
+ * Set local auth token (for development without Supabase)
+ */
+export function setLocalAuthToken(token: string | null): void {
+  cachedToken = token;
+  if (token) {
+    localStorage.setItem(LOCAL_AUTH_TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(LOCAL_AUTH_TOKEN_KEY);
+  }
+}
+
+/**
+ * Get local auth token (for development without Supabase)
+ */
+export function getLocalAuthToken(): string | null {
+  return localStorage.getItem(LOCAL_AUTH_TOKEN_KEY);
+}
+
+/**
+ * Clear local auth token
+ */
+export function clearLocalAuthToken(): void {
+  cachedToken = null;
+  localStorage.removeItem(LOCAL_AUTH_TOKEN_KEY);
 }
 
 /**
