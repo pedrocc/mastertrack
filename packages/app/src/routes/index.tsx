@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const { isAuthenticated, isLoading: authLoading, user, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, isUserDataFromDb, user, isAdmin } = useAuth();
   const { data: userContainers = [], isLoading: containersLoading } = useCompanyContainers(
     user?.companyId
   );
@@ -31,11 +31,11 @@ function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Calculate if all data is ready BEFORE any render decision
-  // For customers: need auth + companyId (from DB) + containers
-  // For admins: only need auth
+  // For customers: need auth + user data from DB + containers
+  // For admins: only need auth + user data from DB
   const isCustomerDataReady =
-    !authLoading && isAuthenticated && !!user?.companyId && !containersLoading;
-  const isAdminDataReady = !authLoading && isAuthenticated && isAdmin;
+    !authLoading && isAuthenticated && isUserDataFromDb && !containersLoading;
+  const isAdminDataReady = !authLoading && isAuthenticated && isUserDataFromDb && isAdmin;
   const isDataReady = isAdminDataReady || isCustomerDataReady;
 
   // Redirect to login if not authenticated (after auth loading completes)

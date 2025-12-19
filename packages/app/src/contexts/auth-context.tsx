@@ -7,6 +7,7 @@ import { isSupabaseConfigured, supabase } from "../lib/supabase";
 interface AuthContextType {
   user: UserWithCompany | null;
   isLoading: boolean;
+  isUserDataFromDb: boolean; // true when user data has been loaded from database
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserWithCompany | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUserDataFromDb, setIsUserDataFromDb] = useState(false);
 
   // Fetch user data from database API by email
   const fetchUserFromDb = useCallback(async (email: string): Promise<UserWithCompany | null> => {
@@ -172,15 +174,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
             .then((dbUser) => {
               if (isMounted && dbUser) {
                 setUser(dbUser);
+                setIsUserDataFromDb(true);
                 console.log("[Auth] User data refreshed from database");
+              } else if (isMounted) {
+                // DB fetch failed, mark as loaded anyway to not block UI
+                setIsUserDataFromDb(true);
+                console.log("[Auth] DB fetch failed, using Supabase data");
               }
             })
             .catch((error) => {
               console.error("Failed to load user data on auth change:", error);
+              if (isMounted) {
+                setIsUserDataFromDb(true); // Don't block UI on error
+              }
             });
+        } else {
+          // No email, can't fetch from DB
+          setIsUserDataFromDb(true);
         }
       } else {
         setUser(null);
+        setIsUserDataFromDb(false); // Reset when logged out
         // Mark auth as checked for logout case too
         if (!initialAuthChecked) {
           initialAuthChecked = true;
@@ -271,6 +285,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     () => ({
       user,
       isLoading,
+      isUserDataFromDb,
       isAuthenticated: user !== null,
       login,
       logout,
@@ -278,7 +293,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session,
       refreshUser,
     }),
-    [user, isLoading, login, logout, session, refreshUser]
+    [user, isLoading, isUserDataFromDb, login, logout, session, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
