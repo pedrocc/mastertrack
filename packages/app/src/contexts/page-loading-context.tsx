@@ -1,83 +1,81 @@
 import {
   createContext,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useRef,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
 
 /**
- * Store simples para gerenciar o estado de loading das páginas
- * Usa o padrão de external store para evitar loops de re-render
+ * Store para gerenciar o estado de loading das páginas
+ * Usa useSyncExternalStore para evitar loops de re-render
  */
-function createPageLoadingStore() {
-  const loadingStates = new Map<string, boolean>();
-  const listeners = new Set<() => void>();
+class PageLoadingStore {
+  private loadingStates = new Map<string, boolean>();
+  private listeners = new Set<() => void>();
+  private snapshot = false;
 
-  function getSnapshot(): boolean {
-    for (const loading of loadingStates.values()) {
-      if (loading) return true;
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  };
+
+  getSnapshot = (): boolean => {
+    return this.snapshot;
+  };
+
+  private updateSnapshot() {
+    let newSnapshot = false;
+    for (const loading of this.loadingStates.values()) {
+      if (loading) {
+        newSnapshot = true;
+        break;
+      }
     }
-    return false;
-  }
 
-  function subscribe(listener: () => void): () => void {
-    listeners.add(listener);
-    return () => listeners.delete(listener);
-  }
-
-  function notify() {
-    for (const listener of listeners) {
-      listener();
+    if (this.snapshot !== newSnapshot) {
+      this.snapshot = newSnapshot;
+      // Notify listeners in next microtask to avoid React update loop
+      queueMicrotask(() => {
+        for (const listener of this.listeners) {
+          listener();
+        }
+      });
     }
   }
 
-  function setLoading(id: string, loading: boolean) {
-    const current = loadingStates.get(id);
+  setLoading(id: string, loading: boolean) {
+    const current = this.loadingStates.get(id);
     if (current === loading) return;
 
-    loadingStates.set(id, loading);
-    notify();
+    this.loadingStates.set(id, loading);
+    this.updateSnapshot();
   }
 
-  function unregister(id: string) {
-    if (loadingStates.has(id)) {
-      loadingStates.delete(id);
-      notify();
+  unregister(id: string) {
+    if (this.loadingStates.has(id)) {
+      this.loadingStates.delete(id);
+      this.updateSnapshot();
     }
   }
-
-  return { getSnapshot, subscribe, setLoading, unregister };
 }
 
-type PageLoadingStore = ReturnType<typeof createPageLoadingStore>;
+// Singleton store - created once
+const store = new PageLoadingStore();
 
-const PageLoadingContext = createContext<PageLoadingStore | null>(null);
+const PageLoadingContext = createContext(store);
 
 export function PageLoadingProvider({ children }: { children: ReactNode }) {
-  // Cria o store uma única vez
-  const storeRef = useRef<PageLoadingStore | null>(null);
-  if (!storeRef.current) {
-    storeRef.current = createPageLoadingStore();
-  }
-
-  return (
-    <PageLoadingContext.Provider value={storeRef.current}>{children}</PageLoadingContext.Provider>
-  );
+  return <PageLoadingContext.Provider value={store}>{children}</PageLoadingContext.Provider>;
 }
 
 /**
  * Hook para o root layout observar o estado de loading das páginas
  */
 export function usePageLoadingState(): boolean {
-  const store = useContext(PageLoadingContext);
-
-  if (!store) {
-    throw new Error("usePageLoadingState must be used within PageLoadingProvider");
-  }
-
-  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+  const pageStore = useContext(PageLoadingContext);
+  return useSyncExternalStore(pageStore.subscribe, pageStore.getSnapshot, pageStore.getSnapshot);
 }
 
 /**
@@ -86,22 +84,19 @@ export function usePageLoadingState(): boolean {
  * @param id - ID único para esta página
  */
 export function usePageLoading(isLoading: boolean, id: string) {
-  const store = useContext(PageLoadingContext);
-  const prevLoadingRef = useRef<boolean | null>(null);
+  const pageStore = useContext(PageLoadingContext);
+  const lastValueRef = useRef<boolean | undefined>(undefined);
 
-  // Atualiza o estado apenas quando realmente muda
-  useEffect(() => {
-    if (!store) return;
-
-    // Só atualiza se o valor realmente mudou
-    if (prevLoadingRef.current !== isLoading) {
-      prevLoadingRef.current = isLoading;
-      store.setLoading(id, isLoading);
+  // Use useLayoutEffect to update synchronously before paint
+  useLayoutEffect(() => {
+    // Only update if value changed
+    if (lastValueRef.current !== isLoading) {
+      lastValueRef.current = isLoading;
+      pageStore.setLoading(id, isLoading);
     }
 
-    // Cleanup: remove o registro quando o componente desmonta
     return () => {
-      store.unregister(id);
+      pageStore.unregister(id);
     };
-  }, [store, id, isLoading]);
+  }, [pageStore, id, isLoading]);
 }

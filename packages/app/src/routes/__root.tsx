@@ -40,8 +40,7 @@ function RootLayout() {
   const avatarLetter =
     user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Show loading until auth + page data is completely ready
-  // This prevents showing the header/layout before page data loads
+  // Show loading until auth + page data is ready
   if (isLoading || (isAuthenticated && isPageLoading)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">

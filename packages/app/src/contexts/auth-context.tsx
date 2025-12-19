@@ -131,7 +131,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Listen for auth changes - this fires immediately with INITIAL_SESSION
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
       if (!isMounted) return;
 
       setSession(newSession);

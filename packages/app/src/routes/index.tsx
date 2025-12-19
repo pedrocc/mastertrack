@@ -33,12 +33,10 @@ function DashboardPage() {
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Determine if page is still loading data
-  // Admin doesn't need containers, so only customers have page loading state
+  // Calculate if page is loading (only for non-admin users who need containers)
   const isPageDataLoading = !isAdmin && (containersLoading || containersFetching);
 
-  // Register page loading state with the root layout
-  // This makes the root show the centralized loading screen
+  // Register page loading state - root layout will show centralized loading
   usePageLoading(isPageDataLoading, "dashboard");
 
   // Redirect to login if not authenticated (after auth loading completes)
@@ -48,23 +46,27 @@ function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // If auth is still loading or not authenticated, return null
-  // The root layout handles showing the loading screen
-  if (authLoading || !isAuthenticated || !user) {
+  // 1. Auth still loading - return null (root shows loading)
+  if (authLoading) {
     return null;
   }
 
-  // If admin, show admin dashboard immediately (no containers needed)
+  // 2. Not authenticated - will redirect
+  if (!isAuthenticated || !user) {
+    return null;
+  }
+
+  // 3. Admin - show admin dashboard (no containers needed)
   if (isAdmin) {
     return <AdminDashboard user={user} />;
   }
 
-  // If page data is loading, return null - root shows centralized loading
+  // 4. Customer - return null while loading (root shows centralized loading)
   if (isPageDataLoading) {
     return null;
   }
 
-  // All data ready - show customer dashboard
+  // 5. All data ready - show customer dashboard
 
   // Filter containers
   const filteredContainers = userContainers.filter((container) => {
