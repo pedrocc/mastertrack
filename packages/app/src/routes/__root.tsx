@@ -12,7 +12,7 @@ import {
 } from "../components/ui/dropdown-menu";
 import { Toaster } from "../components/ui/toaster";
 import { useAuth } from "../contexts/auth-context";
-import { usePageLoadingState } from "../contexts/page-loading-context";
+import { PageLoadingOverlay } from "../contexts/page-loading-context";
 import { useRequests } from "../contexts/requests-context";
 import { useSupportChat } from "../contexts/support-chat-context";
 
@@ -22,7 +22,6 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
-  const isPageLoading = usePageLoadingState();
   const { getUnseenStatusCount, getUnseenByAdminCount } = useRequests();
   const { getUnreadCountForAdmin } = useSupportChat();
   const navigate = useNavigate();
@@ -40,8 +39,8 @@ function RootLayout() {
   const avatarLetter =
     user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Show loading until auth + page data is ready
-  if (isLoading || (isAuthenticated && isPageLoading)) {
+  // Show loading until auth is ready
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -54,6 +53,9 @@ function RootLayout() {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Page loading overlay - controlled via DOM manipulation */}
+      <PageLoadingOverlay />
+
       {/* Header - Only show when authenticated */}
       {isAuthenticated && (
         <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-border">

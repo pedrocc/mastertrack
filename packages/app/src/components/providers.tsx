@@ -3,7 +3,6 @@ import type { ReactNode } from "react";
 import { AuthProvider } from "../contexts/auth-context";
 import { CompaniesProvider } from "../contexts/companies-context";
 import { NotificationsProvider } from "../contexts/notifications-context";
-import { PageLoadingProvider } from "../contexts/page-loading-context";
 import { RequestsProvider } from "../contexts/requests-context";
 import { SLASettingsProvider } from "../contexts/sla-settings-context";
 import { SupportChatProvider } from "../contexts/support-chat-context";
@@ -28,19 +27,17 @@ interface ProvidersProps {
 export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
-      <PageLoadingProvider>
-        <AuthProvider>
-          <SLASettingsProvider>
-            <SupportChatProvider>
-              <CompaniesProvider>
-                <RequestsProvider>
-                  <NotificationsProvider>{children}</NotificationsProvider>
-                </RequestsProvider>
-              </CompaniesProvider>
-            </SupportChatProvider>
-          </SLASettingsProvider>
-        </AuthProvider>
-      </PageLoadingProvider>
+      <AuthProvider>
+        <SLASettingsProvider>
+          <SupportChatProvider>
+            <CompaniesProvider>
+              <RequestsProvider>
+                <NotificationsProvider>{children}</NotificationsProvider>
+              </RequestsProvider>
+            </CompaniesProvider>
+          </SupportChatProvider>
+        </SLASettingsProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 }
