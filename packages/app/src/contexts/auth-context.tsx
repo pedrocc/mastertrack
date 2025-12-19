@@ -75,6 +75,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null);
   // isLoading stays TRUE until we have complete user data (including DB fetch)
   const [isLoading, setIsLoading] = useState(true);
+  // Track if the browser has painted the loading screen at least once
+  const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
+  // Internal flag for when data is ready (but we still wait for paint)
+  const [dataReady, setDataReady] = useState(false);
 
   // Fetch user data from database API by email
   const fetchUserFromDb = useCallback(async (email: string): Promise<UserWithCompany | null> => {
@@ -113,10 +117,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [session, fetchUserFromDb]);
 
+  // Ensure browser paints loading screen before showing content
+  // This effect waits for at least 2 animation frames to guarantee paint
+  useEffect(() => {
+    let frameId: number;
+    let mounted = true;
+
+    // Wait for 2 animation frames to ensure browser has painted loading screen
+    const waitForPaint = () => {
+      frameId = requestAnimationFrame(() => {
+        frameId = requestAnimationFrame(() => {
+          if (mounted) {
+            setHasRenderedOnce(true);
+          }
+        });
+      });
+    };
+
+    waitForPaint();
+
+    return () => {
+      mounted = false;
+      cancelAnimationFrame(frameId);
+    };
+  }, []);
+
+  // Only set isLoading to false when BOTH conditions are met:
+  // 1. Data is ready (auth check + DB fetch complete)
+  // 2. Browser has painted loading screen at least once
+  useEffect(() => {
+    if (dataReady && hasRenderedOnce) {
+      setIsLoading(false);
+    }
+  }, [dataReady, hasRenderedOnce]);
+
   // Initialize auth state from Supabase
   useEffect(() => {
     if (!isSupabaseConfigured()) {
-      setIsLoading(false);
+      setDataReady(true);
       return;
     }
 
@@ -136,7 +174,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // Set Supabase data as immediate fallback (but keep loading = true)
         setUser(supabaseUserToAppUser(newSession.user));
 
-        // Fetch from DB and ONLY set loading = false after completion
+        // Fetch from DB and ONLY mark data as ready after completion
         if (newSession.user.email) {
           try {
             const dbUser = await fetchUserFromDb(newSession.user.email);
@@ -144,31 +182,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
               if (dbUser) {
                 setUser(dbUser);
               }
-              setIsLoading(false);
-              console.log("[Auth] DB fetch complete, loading = false");
+              setDataReady(true);
+              console.log("[Auth] DB fetch complete, data ready");
             }
           } catch (error) {
             console.error("[Auth] DB fetch failed:", error);
             if (isMounted) {
-              setIsLoading(false); // Still set loading false on error
+              setDataReady(true); // Still mark data ready on error
             }
           }
         } else {
-          setIsLoading(false);
+          setDataReady(true);
         }
       } else {
         // Not authenticated
         setUser(null);
-        setIsLoading(false);
-        console.log("[Auth] No session, loading = false");
+        setDataReady(true);
+        console.log("[Auth] No session, data ready");
       }
     });
 
     // Fallback timeout
     const timeoutId = setTimeout(() => {
       if (isMounted) {
-        console.log("[Auth] Timeout reached, forcing loading = false");
-        setIsLoading(false);
+        console.log("[Auth] Timeout reached, forcing data ready");
+        setDataReady(true);
       }
     }, 5000);
 
@@ -199,8 +237,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error("Supabase nao configurado");
       }
 
-      // Keep loading true during login
+      // Reset state for new login - keep loading true
       setIsLoading(true);
+      setDataReady(false);
+      setHasRenderedOnce(false);
+
+      // Wait for 2 frames to show loading screen
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setHasRenderedOnce(true);
+            resolve();
+          });
+        });
+      });
 
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
@@ -208,7 +258,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       if (error) {
-        setIsLoading(false);
+        setDataReady(true);
         throw new Error(error.message);
       }
 
@@ -228,8 +278,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         }
 
-        // Only set loading false after everything is done
-        setIsLoading(false);
+        // Mark data as ready - isLoading will become false via the effect
+        setDataReady(true);
       }
     },
     [fetchUserFromDb]
@@ -238,7 +288,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = useCallback(async () => {
     setUser(null);
     setSession(null);
-    setIsLoading(false);
+    setDataReady(true); // Mark as ready (no user state)
+    // isLoading will be set to false by the effect
 
     if (isSupabaseConfigured()) {
       try {
