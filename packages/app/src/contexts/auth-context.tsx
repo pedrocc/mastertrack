@@ -1,21 +1,12 @@
 import type { UserRole, UserWithCompany } from "@mastertrack/shared";
 import type { Session, User } from "@supabase/supabase-js";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { api, handleResponse } from "../lib/api";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 
 interface AuthContextType {
   user: UserWithCompany | null;
   isLoading: boolean;
-  isUserDataFromDb: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -82,13 +73,8 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<UserWithCompany | null>(null);
   const [session, setSession] = useState<Session | null>(null);
+  // isLoading stays TRUE until we have complete user data (including DB fetch)
   const [isLoading, setIsLoading] = useState(true);
-  const [isUserDataFromDb, setIsUserDataFromDb] = useState(false);
-
-  // Track if we're in the middle of a login to prevent duplicate DB fetches
-  const isLoginInProgress = useRef(false);
-  // Track if DB fetch has been completed for current session
-  const dbFetchCompleted = useRef(false);
 
   // Fetch user data from database API by email
   const fetchUserFromDb = useCallback(async (email: string): Promise<UserWithCompany | null> => {
@@ -127,21 +113,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [session, fetchUserFromDb]);
 
-  // Load user data from DB and set isUserDataFromDb flag
-  const loadUserDataFromDb = useCallback(
-    async (email: string, isMounted: () => boolean) => {
-      const dbUser = await fetchUserFromDb(email);
-      if (isMounted()) {
-        if (dbUser) {
-          setUser(dbUser);
-        }
-        setIsUserDataFromDb(true);
-        dbFetchCompleted.current = true;
-      }
-    },
-    [fetchUserFromDb]
-  );
-
   // Initialize auth state from Supabase
   useEffect(() => {
     if (!isSupabaseConfigured()) {
@@ -150,12 +121,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     let isMounted = true;
-    const isMountedFn = () => isMounted;
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, newSession) => {
+    } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!isMounted) return;
 
       console.log("[Auth] onAuthStateChange:", event, "session:", !!newSession);
@@ -163,38 +133,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setSession(newSession);
 
       if (newSession?.user) {
-        // Set Supabase data as immediate fallback
+        // Set Supabase data as immediate fallback (but keep loading = true)
         setUser(supabaseUserToAppUser(newSession.user));
-        setIsLoading(false);
 
-        // Only fetch from DB if:
-        // 1. Login is not in progress (login() handles its own DB fetch)
-        // 2. DB fetch hasn't been completed for this session yet
-        if (!isLoginInProgress.current && !dbFetchCompleted.current && newSession.user.email) {
-          loadUserDataFromDb(newSession.user.email, isMountedFn);
+        // Fetch from DB and ONLY set loading = false after completion
+        if (newSession.user.email) {
+          try {
+            const dbUser = await fetchUserFromDb(newSession.user.email);
+            if (isMounted) {
+              if (dbUser) {
+                setUser(dbUser);
+              }
+              setIsLoading(false);
+              console.log("[Auth] DB fetch complete, loading = false");
+            }
+          } catch (error) {
+            console.error("[Auth] DB fetch failed:", error);
+            if (isMounted) {
+              setIsLoading(false); // Still set loading false on error
+            }
+          }
+        } else {
+          setIsLoading(false);
         }
       } else {
-        // Logged out
+        // Not authenticated
         setUser(null);
-        setIsUserDataFromDb(false);
         setIsLoading(false);
-        dbFetchCompleted.current = false;
+        console.log("[Auth] No session, loading = false");
       }
     });
 
     // Fallback timeout
     const timeoutId = setTimeout(() => {
       if (isMounted) {
+        console.log("[Auth] Timeout reached, forcing loading = false");
         setIsLoading(false);
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       isMounted = false;
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, [loadUserDataFromDb]);
+  }, [fetchUserFromDb]);
 
   // Refresh user data when tab becomes visible
   useEffect(() => {
@@ -216,56 +199,46 @@ export function AuthProvider({ children }: AuthProviderProps) {
         throw new Error("Supabase nao configurado");
       }
 
-      // Mark login in progress to prevent onAuthStateChange from doing duplicate DB fetch
-      isLoginInProgress.current = true;
-      dbFetchCompleted.current = false;
-      setIsUserDataFromDb(false);
+      // Keep loading true during login
+      setIsLoading(true);
 
-      try {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-        if (error) {
-          throw new Error(error.message);
-        }
+      if (error) {
+        setIsLoading(false);
+        throw new Error(error.message);
+      }
 
-        if (data.user) {
-          setSession(data.session);
+      if (data.user) {
+        setSession(data.session);
+        setUser(supabaseUserToAppUser(data.user));
 
-          // Set Supabase data immediately
-          setUser(supabaseUserToAppUser(data.user));
-
-          // Then fetch from DB and wait for it
-          if (data.user.email) {
+        // Fetch from DB and wait
+        if (data.user.email) {
+          try {
             const dbUser = await fetchUserFromDb(data.user.email);
             if (dbUser) {
               setUser(dbUser);
             }
-            setIsUserDataFromDb(true);
-            dbFetchCompleted.current = true;
-          } else {
-            setIsUserDataFromDb(true);
-            dbFetchCompleted.current = true;
+          } catch (error) {
+            console.error("[Auth] Login DB fetch failed:", error);
           }
         }
-      } finally {
-        isLoginInProgress.current = false;
+
+        // Only set loading false after everything is done
+        setIsLoading(false);
       }
     },
     [fetchUserFromDb]
   );
 
   const logout = useCallback(async () => {
-    // Reset refs
-    dbFetchCompleted.current = false;
-    isLoginInProgress.current = false;
-
-    // Clear local state immediately
     setUser(null);
     setSession(null);
-    setIsUserDataFromDb(false);
+    setIsLoading(false);
 
     if (isSupabaseConfigured()) {
       try {
@@ -280,7 +253,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     () => ({
       user,
       isLoading,
-      isUserDataFromDb,
       isAuthenticated: user !== null,
       login,
       logout,
@@ -288,7 +260,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       session,
       refreshUser,
     }),
-    [user, isLoading, isUserDataFromDb, login, logout, session, refreshUser]
+    [user, isLoading, login, logout, session, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

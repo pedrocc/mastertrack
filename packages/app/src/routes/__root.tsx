@@ -20,7 +20,7 @@ export const Route = createRootRoute({
 });
 
 function RootLayout() {
-  const { user, isAuthenticated, logout, isAdmin, isLoading, isUserDataFromDb } = useAuth();
+  const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
   const { getUnseenStatusCount, getUnseenByAdminCount } = useRequests();
   const { getUnreadCountForAdmin } = useSupportChat();
   const navigate = useNavigate();
@@ -38,11 +38,8 @@ function RootLayout() {
   const avatarLetter =
     user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Show loading state during auth check AND while fetching user data from DB
-  // This ensures the logo stays visible until we're ready to show header + skeleton
-  const showLoadingScreen = isLoading || (isAuthenticated && !isUserDataFromDb);
-
-  if (showLoadingScreen) {
+  // Show loading until auth + DB data is completely ready
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

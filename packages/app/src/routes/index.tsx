@@ -21,7 +21,7 @@ export const Route = createFileRoute("/")({
 });
 
 function DashboardPage() {
-  const { isAuthenticated, isLoading: authLoading, isUserDataFromDb, user, isAdmin } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, isAdmin } = useAuth();
   const {
     data: userContainers = [],
     isLoading: containersLoading,
@@ -33,14 +33,13 @@ function DashboardPage() {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Calculate if all data is ready BEFORE any render decision
-  // For customers: need auth + user data from DB + containers fetched at least once
-  // For admins: only need auth + user data from DB
-  // Use containersLoaded (isFetched) to ensure we wait for first fetch when companyId exists
+  // Auth loading now includes DB fetch, so we just need:
+  // - For customers: auth done + containers fetched
+  // - For admins: auth done
   const needsContainers = !!user?.companyId && !isAdmin;
-  const isContainersReady = !needsContainers || containersLoaded;
-  const isCustomerDataReady =
-    !authLoading && isAuthenticated && isUserDataFromDb && isContainersReady && !containersLoading;
-  const isAdminDataReady = !authLoading && isAuthenticated && isUserDataFromDb && isAdmin;
+  const isContainersReady = !needsContainers || (containersLoaded && !containersLoading);
+  const isCustomerDataReady = !authLoading && isAuthenticated && isContainersReady;
+  const isAdminDataReady = !authLoading && isAuthenticated && isAdmin;
   const isDataReady = isAdminDataReady || isCustomerDataReady;
 
   // Redirect to login if not authenticated (after auth loading completes)
