@@ -22,19 +22,24 @@ export const Route = createFileRoute("/")({
 
 function DashboardPage() {
   const { isAuthenticated, isLoading: authLoading, isUserDataFromDb, user, isAdmin } = useAuth();
-  const { data: userContainers = [], isLoading: containersLoading } = useCompanyContainers(
-    user?.companyId
-  );
+  const {
+    data: userContainers = [],
+    isLoading: containersLoading,
+    isFetched: containersLoaded,
+  } = useCompanyContainers(user?.companyId);
   const navigate = useNavigate();
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
   // Calculate if all data is ready BEFORE any render decision
-  // For customers: need auth + user data from DB + containers
+  // For customers: need auth + user data from DB + containers fetched at least once
   // For admins: only need auth + user data from DB
+  // Use containersLoaded (isFetched) to ensure we wait for first fetch when companyId exists
+  const needsContainers = !!user?.companyId && !isAdmin;
+  const isContainersReady = !needsContainers || containersLoaded;
   const isCustomerDataReady =
-    !authLoading && isAuthenticated && isUserDataFromDb && !containersLoading;
+    !authLoading && isAuthenticated && isUserDataFromDb && isContainersReady && !containersLoading;
   const isAdminDataReady = !authLoading && isAuthenticated && isUserDataFromDb && isAdmin;
   const isDataReady = isAdminDataReady || isCustomerDataReady;
 
