@@ -1,5 +1,6 @@
 import { Link, Outlet, createRootRoute, useNavigate } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/router-devtools";
+import { SupportChatWidget } from "../components/support-chat-widget";
 import { Avatar, AvatarFallback } from "../components/ui/avatar";
 import {
   DropdownMenu,
@@ -10,8 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { Toaster } from "../components/ui/toaster";
-import { SupportChatWidget } from "../components/support-chat-widget";
 import { useAuth } from "../contexts/auth-context";
+import { usePageLoadingState } from "../contexts/page-loading-context";
 import { useRequests } from "../contexts/requests-context";
 import { useSupportChat } from "../contexts/support-chat-context";
 
@@ -21,6 +22,7 @@ export const Route = createRootRoute({
 
 function RootLayout() {
   const { user, isAuthenticated, logout, isAdmin, isLoading } = useAuth();
+  const isPageLoading = usePageLoadingState();
   const { getUnseenStatusCount, getUnseenByAdminCount } = useRequests();
   const { getUnreadCountForAdmin } = useSupportChat();
   const navigate = useNavigate();
@@ -38,8 +40,9 @@ function RootLayout() {
   const avatarLetter =
     user?.name?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || "U";
 
-  // Show loading until auth + DB data is completely ready
-  if (isLoading) {
+  // Show loading until auth + page data is completely ready
+  // This prevents showing the header/layout before page data loads
+  if (isLoading || (isAuthenticated && isPageLoading)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">

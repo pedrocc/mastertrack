@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from "../components/ui/sheet";
 import { useAuth } from "../contexts/auth-context";
+import { usePageLoading } from "../contexts/page-loading-context";
 import { type Container, useCompanyContainers } from "../hooks/use-containers";
 
 export const Route = createFileRoute("/")({
@@ -32,6 +33,14 @@ function DashboardPage() {
   const [dateFilter, setDateFilter] = useState({ start: "", end: "" });
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Determine if page is still loading data
+  // Admin doesn't need containers, so only customers have page loading state
+  const isPageDataLoading = !isAdmin && (containersLoading || containersFetching);
+
+  // Register page loading state with the root layout
+  // This makes the root show the centralized loading screen
+  usePageLoading(isPageDataLoading, "dashboard");
+
   // Redirect to login if not authenticated (after auth loading completes)
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
@@ -39,32 +48,23 @@ function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // SINGLE LOADING CHECK - keep skeleton until ALL data is ready
-  // This prevents any flash of content before data is loaded
-
-  // 1. Auth still loading - show skeleton
-  if (authLoading) {
-    return <DashboardSkeleton />;
-  }
-
-  // 2. Not authenticated - will redirect, show nothing
-  if (!isAuthenticated || !user) {
+  // If auth is still loading or not authenticated, return null
+  // The root layout handles showing the loading screen
+  if (authLoading || !isAuthenticated || !user) {
     return null;
   }
 
-  // 3. User data loaded - check role
   // If admin, show admin dashboard immediately (no containers needed)
   if (isAdmin) {
     return <AdminDashboard user={user} />;
   }
 
-  // 4. Customer flow - ALWAYS show skeleton while containers are loading/fetching
-  // This includes initial load AND refetches
-  if (containersLoading || containersFetching) {
-    return <DashboardSkeleton />;
+  // If page data is loading, return null - root shows centralized loading
+  if (isPageDataLoading) {
+    return null;
   }
 
-  // 5. All data ready - show customer dashboard
+  // All data ready - show customer dashboard
 
   // Filter containers
   const filteredContainers = userContainers.filter((container) => {
@@ -773,103 +773,6 @@ function DashboardPage() {
           )}
         </SheetContent>
       </Sheet>
-    </div>
-  );
-}
-
-// Loading Skeleton Component
-function DashboardSkeleton() {
-  return (
-    <div className="animate-fade-in-up">
-      {/* Header Skeleton */}
-      <div className="mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="h-1 w-8 bg-muted rounded-full" />
-          <div className="h-3 w-24 bg-muted rounded animate-pulse" />
-        </div>
-        <div className="h-9 w-48 bg-muted rounded animate-pulse mb-2" />
-        <div className="h-5 w-72 bg-muted rounded animate-pulse" />
-        <div className="flex items-center gap-2 mt-3">
-          <div className="h-4 w-4 bg-muted rounded animate-pulse" />
-          <div className="h-4 w-40 bg-muted rounded animate-pulse" />
-        </div>
-      </div>
-
-      {/* Filter Skeleton */}
-      <Card className="mb-6 border-dashed">
-        <CardContent className="pt-4 pb-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="h-5 w-28 bg-muted rounded animate-pulse" />
-            <div className="h-9 w-40 bg-muted rounded animate-pulse" />
-            <div className="h-9 w-40 bg-muted rounded animate-pulse" />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Stats Grid Skeleton */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-8">
-        {[1, 2, 3].map((i) => (
-          <Card key={i} className="overflow-hidden">
-            <div className="h-1 bg-muted" />
-            <CardHeader className="pb-2">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-4 bg-muted rounded animate-pulse" />
-                <div className="h-3 w-32 bg-muted rounded animate-pulse" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <div className="h-3 w-20 bg-muted rounded animate-pulse mb-2" />
-                  <div className="h-8 w-12 bg-muted rounded animate-pulse" />
-                </div>
-                <div className="h-12 w-px bg-border" />
-                <div className="flex-1">
-                  <div className="h-3 w-20 bg-muted rounded animate-pulse mb-2" />
-                  <div className="h-8 w-12 bg-muted rounded animate-pulse" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Container List Skeleton */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div>
-              <div className="h-6 w-40 bg-muted rounded animate-pulse mb-2" />
-              <div className="h-4 w-32 bg-muted rounded animate-pulse" />
-            </div>
-            <div className="h-10 w-64 bg-muted rounded animate-pulse" />
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="p-4 rounded-xl border border-border bg-white">
-                <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-                  <div className="flex items-center gap-3 lg:w-56">
-                    <div className="h-12 w-12 rounded-lg bg-muted animate-pulse" />
-                    <div>
-                      <div className="h-5 w-28 bg-muted rounded animate-pulse mb-1" />
-                      <div className="h-3 w-20 bg-muted rounded animate-pulse" />
-                    </div>
-                  </div>
-                  <div className="flex-1 hidden md:block">
-                    <div className="h-4 w-48 bg-muted rounded animate-pulse mb-2" />
-                    <div className="h-1.5 w-full bg-muted rounded animate-pulse" />
-                  </div>
-                  <div className="flex items-center gap-2 lg:w-48 justify-end">
-                    <div className="h-6 w-24 bg-muted rounded-full animate-pulse" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
