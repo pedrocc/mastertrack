@@ -25,7 +25,7 @@ function DashboardPage() {
   const {
     data: userContainers = [],
     isLoading: containersLoading,
-    isFetched: containersLoaded,
+    isFetching: containersFetching,
   } = useCompanyContainers(user?.companyId);
   const navigate = useNavigate();
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
@@ -39,34 +39,32 @@ function DashboardPage() {
     }
   }, [authLoading, isAuthenticated, navigate]);
 
-  // EXPLICIT EARLY RETURNS - simple sequential checks
+  // SINGLE LOADING CHECK - keep skeleton until ALL data is ready
+  // This prevents any flash of content before data is loaded
 
-  // 1. If auth is loading, show skeleton
+  // 1. Auth still loading - show skeleton
   if (authLoading) {
     return <DashboardSkeleton />;
   }
 
-  // 2. If not authenticated, return null (will redirect)
-  if (!isAuthenticated) {
+  // 2. Not authenticated - will redirect, show nothing
+  if (!isAuthenticated || !user) {
     return null;
   }
 
-  // 3. At this point we have a user. Check if admin.
+  // 3. User data loaded - check role
+  // If admin, show admin dashboard immediately (no containers needed)
   if (isAdmin) {
-    // Admin is ready - show admin dashboard
     return <AdminDashboard user={user} />;
   }
 
-  // 4. Customer flow - need to wait for containers if they have a company
-  const hasCompanyId = !!user?.companyId;
-  const containersAreReady = containersLoaded && !containersLoading;
-
-  // If customer has a company, wait for containers to load
-  if (hasCompanyId && !containersAreReady) {
+  // 4. Customer flow - ALWAYS show skeleton while containers are loading/fetching
+  // This includes initial load AND refetches
+  if (containersLoading || containersFetching) {
     return <DashboardSkeleton />;
   }
 
-  // 5. Customer without company OR containers are ready - show dashboard
+  // 5. All data ready - show customer dashboard
 
   // Filter containers
   const filteredContainers = userContainers.filter((container) => {
@@ -116,11 +114,6 @@ function DashboardPage() {
     };
     return colors[status];
   };
-
-  // If admin, show admin dashboard
-  if (isAdmin) {
-    return <AdminDashboard user={user} />;
-  }
 
   // Customer dashboard
   return (
